@@ -112,7 +112,6 @@ dmypy.json
 ecg_app.log
 *.tmp
 *.temp
-clutter/
 .DS_Store
 Thumbs.db
 
@@ -149,4 +148,4 @@ docs/_build/
 
 # Configuration overrides
 local_config.json
-user_config.json
+user_config.json# Allow clutter directory
