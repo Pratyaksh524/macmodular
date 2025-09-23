@@ -12,6 +12,8 @@ A comprehensive ECG monitoring application with 12-lead ECG analysis, real-time 
 - **Dashboard Interface**: Clean, modern dashboard with live metric updates
 - **User Authentication**: Sign-in/sign-out functionality
 - **PDF Report Generation**: Generate comprehensive ECG reports
+- **Recent Reports Panel**: In-app list of the last 10 generated PDF reports with Open action
+- **Dual Save Reports**: When generating a report, it saves to your chosen location (e.g., Downloads) and a managed copy is stored in `reports/` for history
 - **Background GIF Support**: Animated background on sign-in screen
 - **Real-time Data Processing**: Live ECG data acquisition and processing from hardware
 
@@ -71,6 +73,12 @@ python main.py
 7. **View PQRST labeling** and detailed metrics for individual leads
 8. **Monitor arrhythmia detection** in real-time
 
+### Generating Reports
+- Click "Generate Report" on the dashboard
+- Choose a filename and location (e.g., Downloads)
+- The app also stores a managed copy in `reports/` and updates `reports/index.json`
+- The new report appears instantly in the dashboard "Recent Reports" panel; click Open to view
+
 ## ECG Metrics
 
 The application calculates and displays the following metrics in real-time:
@@ -125,6 +133,12 @@ The application calculates and displays the following metrics in real-time:
 - **Responsive UI**: Optimized layout and sizing for better user experience
 
 ### Signal Quality Improvements
+### Dashboard Recent Reports & Report Management
+- Added "Recent Reports" panel with scrollbar and app-themed styling
+- Reports are saved both to the selected path and to `reports/`
+- `reports/index.json` maintains metadata for the last 10 reports for quick access
+- One-click Open action from the dashboard
+
 - **Smooth Waveforms**: Medical-grade signal processing for clean, professional appearance
 - **Stable Baseline**: Reduced drift and improved signal stability
 - **Sharp R-peaks**: Enhanced peak detection for accurate heart rate calculation

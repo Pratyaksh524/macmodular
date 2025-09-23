@@ -42,6 +42,7 @@ src/ecg/twelve_lead_test.py - Main ECG processing
 src/dashboard/dashboard.py - Real-time metrics display  
 src/ecg/expanded_lead_view.py - Detailed lead analysis
 src/utils/settings_manager.py - Hardware configuration
+reports/ - Managed PDF copies and `index.json` metadata for Recent Reports
 ```
 
 ## Dependencies
@@ -58,6 +59,21 @@ src/utils/settings_manager.py - Hardware configuration
 - Display refresh: Real-time updates
 
 ## Performance Characteristics
+## Report Generation & Recent Reports
+### How Reports Are Saved
+- When you click "Generate Report" and pick a location (e.g., Downloads), the PDF is saved there.
+- The application also stores a managed copy under `reports/`.
+- Metadata for the last 10 reports is tracked in `reports/index.json`.
+
+### Recent Reports Panel (Dashboard)
+- Shows the 10 most recent items from `reports/index.json`.
+- Styled to match the app theme.
+- Each entry has an "Open" button to launch the PDF with the OS default viewer.
+
+### Data Sources for Reports
+- Captures real graphs from the active 12-lead view where possible.
+- Falls back gracefully if no live data is available and informs the user.
+
 - **Input**: Up to 400 readings/second
 - **Processing**: Real-time medical filtering
 - **Output**: 12-lead ECG display with 4-second rolling window
