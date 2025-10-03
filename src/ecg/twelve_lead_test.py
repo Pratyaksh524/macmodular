@@ -4300,6 +4300,14 @@ class ECGTestPage(QWidget):
                         ymax = min(ymax, 8000)
                     else:
                         ymin, ymax = -500, 500
+
+                    yr = (ymax - ymin)
+                    lead_name = self.leads[idx] if idx < len(self.leads) else ""
+                    is_chest = lead_name in ["V1", "V2", "V3", "V4", "V5", "V6"]
+                    top_extra = 0.90 if is_chest else 0.35
+                    bottom_extra = 0.70 if is_chest else 0.30
+                    ymin = ymin - yr * bottom_extra
+                    ymax = ymax + yr * top_extra
                     
                     ax.set_ylim(ymin, ymax)
                 else:
@@ -4392,7 +4400,7 @@ class ECGTestPage(QWidget):
             
             for line in self._overlay_lines:
                 line.set_color('#0066cc')
-                line.set_linewidth(2.0)
+                line.set_linewidth(1.5)
         
         elif mode == "dark":
             self.dark_mode_btn.setStyleSheet(active_button_style)
@@ -4414,7 +4422,7 @@ class ECGTestPage(QWidget):
             
             for line in self._overlay_lines:
                 line.set_color('#00ff00')
-                line.set_linewidth(2.0)
+                line.set_linewidth(1.5)
         
         elif mode == "graph":
             self.graph_mode_btn.setStyleSheet(active_button_style)
@@ -4517,7 +4525,7 @@ class ECGTestPage(QWidget):
                     # Change line colors to dark red for better visibility on grid background
                     for line in self._overlay_lines:
                         line.set_color('#cc0000')  # Darker red
-                        line.set_linewidth(2.5)
+                        line.set_linewidth(1.5)
                         line.set_alpha(1.0)
                     
                     # Clean up temporary file
@@ -4908,6 +4916,14 @@ class ECGTestPage(QWidget):
                         ymax = min(ymax, 8000)
                     else:
                         ymin, ymax = -500, 500
+
+                    yr = (ymax - ymin)
+                    lead_name = self.leads[idx] if idx < len(self.leads) else ""
+                    is_chest = lead_name in ["V1", "V2", "V3", "V4", "V5", "V6"]
+                    top_extra = 0.90 if is_chest else 0.35
+                    bottom_extra = 0.70 if is_chest else 0.30
+                    ymin = ymin - yr * bottom_extra
+                    ymax = ymax + yr * top_extra
                     
                     ax.set_ylim(ymin, ymax)
                 else:
