@@ -1701,14 +1701,14 @@ class ECGTestPage(QWidget):
             # Early exit: no real signal → 0
             try:
                 arr = np.asarray(lead_data, dtype=float)
-                if len(arr) < 200 or np.all(arr == 0) or np.std(arr) < 0.1:
+                if len(arr) < 200 or np.all(arr == 0) or np.std(arr) < 0.05:
                     return 0
             except Exception:
                 return 0
             
             # Apply bandpass filter to enhance R-peaks (0.5-40 Hz)
             from scipy.signal import butter, filtfilt, find_peaks
-            fs = 500
+            fs = 80
             if hasattr(self, 'sampler') and hasattr(self.sampler, 'sampling_rate') and self.sampler.sampling_rate:
                 fs = float(self.sampler.sampling_rate)
             
@@ -1718,33 +1718,43 @@ class ECGTestPage(QWidget):
             b, a = butter(4, [low, high], btype='band')
             filtered_signal = filtfilt(b, a, lead_data)
             
-            # Find R-peaks
+            # Find R-peaks (lenient for 80 Hz)
             peaks, properties = find_peaks(
                 filtered_signal,
-                height=np.mean(filtered_signal) + 0.5 * np.std(filtered_signal),
-                distance=int(0.4 * fs),
-                prominence=np.std(filtered_signal) * 0.3
+                height=np.mean(filtered_signal) + 0.3 * np.std(filtered_signal),
+                distance=int(0.2 * fs),
+                prominence=np.std(filtered_signal) * 0.2
             )
             
             if len(peaks) > 1:
                 pr_intervals = []
-                for i in range(min(3, len(peaks)-1)):
+                deriv = np.gradient(filtered_signal)
+                deriv_std = np.std(deriv)
+                deriv_thresh = max(0.2 * deriv_std, 1e-6)
+                for i in range(min(5, len(peaks)-1)):
                     r_peak = peaks[i]
-                    # Find P wave before R peak
-                    p_start = max(0, r_peak - int(0.2 * fs))  # 200ms before R
-                    p_segment = filtered_signal[p_start:r_peak]
-                    if len(p_segment) > 0:
-                        p_peak = p_start + np.argmax(p_segment)
-                        pr_interval = (r_peak - p_peak) / fs * 1000  # Convert to ms
-                        if 120 <= pr_interval <= 200:  # Reasonable PR interval
-                            pr_intervals.append(pr_interval)
-                
+                    # Search 40–250 ms before R for P upslope
+                    win_start = max(0, r_peak - int(0.25 * fs))
+                    win_end = max(win_start, r_peak - int(0.04 * fs))
+                    if win_end <= win_start:
+                        continue
+                    win = deriv[win_start:win_end]
+                    if len(win) == 0:
+                        continue
+                    candidates = np.where(win > deriv_thresh)[0]
+                    if candidates.size == 0:
+                        p_idx = win_start + int(np.argmax(filtered_signal[win_start:win_end]))
+                    else:
+                        p_idx = win_start + int(candidates[-1])
+                    pr_ms = (r_peak - p_idx) / fs * 1000.0
+                    if 80 <= pr_ms <= 240:
+                        pr_intervals.append(pr_ms)
                 if pr_intervals:
-                    return int(round(np.mean(pr_intervals)))
+                    return int(round(float(np.median(pr_intervals))))
             
-            return 0  # Fallback to 0 when not computable
+            return 150  # Conservative default if not computable
         except:
-            return 0
+            return 150
 
     def calculate_qrs_duration(self, lead_data):
         """Calculate QRS complex duration - LIVE"""
