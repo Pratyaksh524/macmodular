@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame, 
     QLineEdit, QComboBox, QSlider, QGroupBox, QListWidget, QDialog,
-    QGridLayout, QFormLayout, QSizePolicy, QMessageBox, QApplication, QRadioButton
+    QGridLayout, QFormLayout, QSizePolicy, QMessageBox, QApplication, QRadioButton, QScrollArea
 )
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -13,6 +13,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import json 
+import sys
  
 class ECGRecording:
     def __init__(self):
@@ -1617,7 +1618,31 @@ class ECGMenu(QGroupBox):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        # Version info container
+        # Version info container with scroll area for better handling
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: #f0f0f0;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #ff6600;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #ff8800;
+            }
+        """)
+        
         info_frame = QFrame()
         info_frame.setStyleSheet("""
             QFrame {
@@ -1633,21 +1658,28 @@ class ECGMenu(QGroupBox):
 
         # Version details
         version_info = [
-            ("Software Version", "v2.1.0"),
-            ("Hardware Version", "v1.5.2"),
-            ("Firmware Version", "v3.0.1"),
+            ("Software Version", "V 1.1.1"),
+            ("Hardware Version", "V 1.5.2"),
+            ("Firmware Version", "V.3.0.1"),
             ("Build Date", "2024-08-26"),
-            ("Manufacturer", "ModularECG Systems"),
-            ("Model", "ECG-12L Pro"),
-            ("Serial Number", "ME-2024-001"),
+            ("Manufacturer", "Modular ECG Systems"),
+            ("Model", "ECG-121 Pro"),
+            ("Serial Number", "MF-2024-001"),
             ("License", "Professional Edition")
         ]
 
+        # Calculate better minimum widths based on content
+        max_label_width = max(len(label) for label, _ in version_info) * 8 + 20  # 8 pixels per char + padding
+        max_value_width = max(len(value) for _, value in version_info) * 8 + 20
+        
         for label, value in version_info:
             row = QHBoxLayout()
+            row.setSpacing(10)  # Consistent spacing between label and value
             
-            # Label
+            # Label with better sizing
             lbl = QLabel(label)
+            lbl.setWordWrap(True)
+            lbl.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
             lbl.setStyleSheet(f"""
                 QLabel {{
                     font: bold {max(11, int(margin_size * 0.55))}pt Arial;
@@ -1656,12 +1688,15 @@ class ECGMenu(QGroupBox):
                     padding: {max(8, int(margin_size * 0.4))}px;
                     border: 1px solid #e0e0e0;
                     border-radius: 6px;
-                    min-width: {max(120, int(margin_size * 6))}px;
+                    min-width: {max(max_label_width, 140)}px;
+                    max-width: 200px;
                 }}
             """)
             
-            # Value
+            # Value with better sizing
             val = QLabel(value)
+            val.setWordWrap(True)
+            val.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
             val.setStyleSheet(f"""
                 QLabel {{
                     font: {max(10, int(margin_size * 0.5))}pt Arial;
@@ -1670,16 +1705,18 @@ class ECGMenu(QGroupBox):
                     padding: {max(8, int(margin_size * 0.4))}px;
                     border: 1px solid #e0e0e0;
                     border-radius: 6px;
-                    min-width: {max(100, int(margin_size * 5))}px;
+                    min-width: {max(max_value_width, 120)}px;
+                    max-width: 250px;
                 }}
             """)
             
-            row.addWidget(lbl)
-            row.addWidget(val)
+            row.addWidget(lbl, 0, Qt.AlignLeft)
+            row.addWidget(val, 0, Qt.AlignLeft)
             row.addStretch()
             info_layout.addLayout(row)
 
-        layout.addWidget(info_frame)
+        scroll_area.setWidget(info_frame)
+        layout.addWidget(scroll_area)
 
         # Exit button
         exit_btn = QPushButton("Close")
@@ -1912,7 +1949,26 @@ class ECGMenu(QGroupBox):
         )
         
         if reply == QMessageBox.Yes:
-            QApplication.quit()
+            # Set flag to indicate application exit
+            if hasattr(self.parent(), 'parent') and hasattr(self.parent().parent(), '_exited_application'):
+                self.parent().parent()._exited_application = True
+            
+            # Close main windows and exit application
+            try:
+                # Close the dashboard and all its child windows
+                if hasattr(self.parent(), 'parent'):
+                    dashboard = self.parent().parent()
+                    if hasattr(dashboard, 'ecg_test_page') and dashboard.ecg_test_page:
+                        dashboard.ecg_test_page.close()
+                    dashboard.close()
+                
+                # Force exit the application
+                QApplication.quit()
+                sys.exit(0)
+            except Exception as e:
+                print(f"Error during exit: {e}")
+                QApplication.quit()
+                sys.exit(0)
         else:
             self.hide_sliding_panel()
 

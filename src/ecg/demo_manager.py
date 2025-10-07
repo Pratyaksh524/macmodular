@@ -120,7 +120,7 @@ class DemoManager:
             except Exception:
                 pass
             
-            # Immediately set hardcoded demo metrics on ECG test page and dashboard
+                        # Immediately set hardcoded demo metrics on ECG test page and dashboard
             try:
                 # Update ECG test page metrics
                 if hasattr(self.ecg_test_page, 'metric_labels'):
@@ -129,6 +129,9 @@ class DemoManager:
                     self.ecg_test_page.metric_labels.get('qrs_duration', QLabel()).setText("85")
                     self.ecg_test_page.metric_labels.get('qrs_axis', QLabel()).setText("0°")
                     self.ecg_test_page.metric_labels.get('st_segment', QLabel()).setText("90")
+                    # QTc label may be named 'qtc_interval' depending on UI
+                    if 'qtc_interval' in self.ecg_test_page.metric_labels:
+                        self.ecg_test_page.metric_labels['qtc_interval'].setText("400/430")
                     print("✅ Demo metrics set on ECG test page")
                 
                 # Update dashboard metrics (same values)
@@ -139,6 +142,9 @@ class DemoManager:
                     dashboard.metric_labels.get('qrs_duration', QLabel()).setText("85 ms")
                     dashboard.metric_labels.get('qrs_axis', QLabel()).setText("0°")
                     dashboard.metric_labels.get('st_interval', QLabel()).setText("90 ms")
+                    if 'qtc_interval' in dashboard.metric_labels:
+                        dashboard.metric_labels['qtc_interval'].setText("400/430 ms")
+                    # Optional: reflect demo sampling rate if shown
                     dashboard.metric_labels.get('sampling_rate', QLabel()).setText("80 Hz")
                     print("✅ Demo metrics set on dashboard")
             except Exception as e:

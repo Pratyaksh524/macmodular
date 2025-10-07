@@ -1430,6 +1430,12 @@ class Dashboard(QWidget):
             # Block updates for first-time users until acquisition/demo starts
             if not self.is_ecg_active():
                 return
+
+            # In demo mode, use the fixed metrics values from demo_manager
+            if hasattr(self, 'ecg_test_page') and hasattr(self.ecg_test_page, 'demo_toggle'):
+                if self.ecg_test_page.demo_toggle.isChecked():
+                    return
+
             if hasattr(self, 'ecg_test_page') and self.ecg_test_page:
                 # Get current metrics from ECG test page
                 if hasattr(self.ecg_test_page, 'get_current_metrics'):

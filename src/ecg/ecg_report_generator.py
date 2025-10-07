@@ -391,6 +391,73 @@ def create_clean_ecg_image(lead_name, width=6, height=2):
     return fig
 
 
+def get_dashboard_conclusions_from_image(dashboard_instance):
+    """
+    Extract only heading part from dashboard conclusion box (before the dash)
+    Returns: List of clean conclusion headings only (up to 8 conclusions)
+    """
+    conclusions = []
+    
+    if dashboard_instance and hasattr(dashboard_instance, 'conclusion_box'):
+        try:
+            # Get plain text from conclusion box
+            plain_text = dashboard_instance.conclusion_box.toPlainText()
+            
+            # Split by lines and filter out empty lines
+            lines = [line.strip() for line in plain_text.split('\n') if line.strip()]
+            
+            # Extract conclusions (skip headers and notes)
+            for line in lines:
+                # Skip common headers and notes
+                if (not line.startswith('Waiting for') and
+                    not line.startswith('Metrics are being') and
+                    not line.startswith('Findings:') and
+                    not line.startswith('Recommendations:') and
+                    not line.startswith('NOTE:') and
+                    not line.startswith('This is an automated') and
+                    not line.startswith('Consider') and  # Skip recommendations
+                    len(line) > 10):  # Only meaningful conclusions
+                    
+                    # Clean up the line (remove status indicators)
+                    clean_line = line.replace('[!]', '').replace('[i]', '').replace('[OK]', '').strip()
+                    
+                    # Extract only the heading part (before the dash)
+                    if ' - ' in clean_line:
+                        heading_only = clean_line.split(' - ')[0].strip()
+                        conclusions.append(heading_only)
+                    elif clean_line and not clean_line.startswith('<'):
+                        # If no dash, use the whole line but limit length
+                        conclusions.append(clean_line[:25] + "..." if len(clean_line) > 25 else clean_line)
+            
+            print(f"📋 Extracted {len(conclusions)} conclusion headings from dashboard:")
+            for i, conclusion in enumerate(conclusions, 1):
+                print(f"   {i}. {conclusion}")
+                
+        except Exception as e:
+            print(f"⚠️ Error extracting conclusions from dashboard: {e}")
+    
+    # Fallback to default conclusion headings if none found
+    if not conclusions:
+        conclusions = [
+            "Tachycardia detected",
+            "Normal PR interval", 
+            "Wide QRS complex",
+            "Good heart rate variability"
+        ]
+        print("📋 Using default conclusion headings as fallback")
+    
+    # Ensure we have exactly 8 conclusions (pad with empty strings if needed)
+    MAX_CONCLUSIONS = 8
+    while len(conclusions) < MAX_CONCLUSIONS:
+        conclusions.append("")  
+    
+    # Limit to maximum 8 conclusions
+    conclusions = conclusions[:MAX_CONCLUSIONS]
+    
+    print(f"📋 Final conclusions list (8 total): {len([c for c in conclusions if c])} filled, {len([c for c in conclusions if not c])} blank")
+    
+    return conclusions
+
 def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, dashboard_instance=None, ecg_test_page=None, patient=None):
     if data is None:
         # Dummy values (replace with Arduino parsed data)
@@ -406,6 +473,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             "HR_min": 74,
             "HR_avg": 88,
         }
+
+    # Get conclusions from dashboard
+    dashboard_conclusions = get_dashboard_conclusions_from_image(dashboard_instance)
 
     #  FORCE DELETE ALL OLD WHITE BACKGROUND IMAGES
     if lead_images is None:
@@ -603,19 +673,18 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
 
    
 
-    # Conclusion in table format
+    # Conclusion in table format - NOW DYNAMIC FROM DASHBOARD (8 conclusions max)
     story.append(Paragraph("<b>ECG Report Conclusion</b>", styles['Heading3']))
     story.append(Spacer(1, 8))   # Reduced from 10
     
-    # Create conclusion table
+    # Create dynamic conclusion table using dashboard conclusions (8 conclusions)
     conclusion_headers = ["S.No.", "Conclusion"]
-    conclusion_data = [
-        ["1", "Sinus Rhythm"],
-        ["2", "PAC (Premature Supraventricular Contraction)"],
-        ["3", "Couplet of PAC"],
-        ["4", "PAC Trigeminy"],
-        ["5", "Supraventricular Tachycardia"]
-    ]
+    conclusion_data = []
+    
+    # FIXED: Show ALL 8 conclusions (even empty ones) instead of only non-empty ones
+    for i, conclusion in enumerate(dashboard_conclusions[:8], 1):  # Ensure exactly 8 conclusions
+        # Add ALL conclusions to table (including empty ones)
+        conclusion_data.append([str(i), conclusion if conclusion.strip() else "---"])  # Show "---" for empty conclusions
     
     # Add headers to conclusion data
     conclusion_table_data = [conclusion_headers] + conclusion_data
@@ -648,8 +717,8 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     story.append(conclusion_table)
     story.append(Spacer(1, 12))  # Reduced from 18
 
-    # ADD PageBreak HERE to send patient details to Page 2
-    story.append(PageBreak())
+    # REMOVE PageBreak HERE to send patient details to Page 2
+    # story.append(PageBreak())
 
     # Now these patient details will be on Page 2 top
     # Patient header on Page 2 (Name, Age, Gender, Date/Time)
@@ -770,21 +839,16 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     QT = data.get('QT', 354)
     QTc = data.get('QTc', 260)
     ST = data.get('ST', 114)
-
-    # Create 3-column vital parameters table (left positioned, normal text)
-    vital_table_style = ParagraphStyle(
-        'VitalTableStyle',
-        fontSize=10,  # Same as Name, Age, Gender
-        fontName='Helvetica',  # Normal font, not bold
-        textColor=colors.black,
-        alignment=0,  # Left alignment instead of center
-    )
+    # DYNAMIC RR interval calculation from heart rate (instead of hard-coded 857)
+    RR = int(60000 / HR) if HR and HR > 0 else 857  # RR interval in ms from heart rate
+   
 
     # Create table data: 2 rows × 2 columns (as per your changes)
     vital_table_data = [
         [f"HR : {HR} bpm", f"QT: {QT} ms"],
         [f"PR : {PR} ms", f"QTc: {QTc} ms"],
-        [f"QRS: {QRS} ms", f"ST: {ST} ms"]
+        [f"QRS: {QRS} ms", f"ST: {ST} ms"],
+        [f"RR : {RR} ms", ""]  
     ]
 
     # Create vital parameters table with MORE LEFT and TOP positioning
@@ -806,9 +870,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-    # Add vital parameters at VERY TOP of Page 2
-    # story.append(vital_params_table)  # REMOVE this line
-    # story.append(Spacer(1, 3))        # REMOVE this line
+   
 
     #  CREATE SINGLE MASSIVE DRAWING with ALL ECG content (NO individual drawings)
     print("Creating SINGLE drawing with all ECG content...")
@@ -862,14 +924,14 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                     # For -aVR, use ALL available inverted aVR data
                     real_ecg_data = -np.array(ecg_test_page.data[3][-8000:])  # Last 8000 points = 16 seconds
                     real_data_available = True
-                    print(f"🔄 Using ALL available -aVR data: {len(real_ecg_data)} points (16+ seconds)")
+                    print(f" Using ALL available -aVR data: {len(real_ecg_data)} points (16+ seconds)")
                 elif lead in lead_to_index and len(ecg_test_page.data) > lead_to_index[lead]:
                     # Get ALL available real data for this lead
                     lead_index = lead_to_index[lead]
                     if len(ecg_test_page.data[lead_index]) > 0:
                         real_ecg_data = np.array(ecg_test_page.data[lead_index][-8000:])  # Last 8000 points = 16 seconds
                         real_data_available = True
-                        print(f"🔄 Using ALL available {lead} data: {len(real_ecg_data)} points (16+ seconds)")
+                        print(f"Using ALL available {lead} data: {len(real_ecg_data)} points (16+ seconds)")
             
             if real_data_available and len(real_ecg_data) > 0:
                 # Draw ALL REAL ECG data - NO LIMITS
@@ -919,15 +981,15 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     from reportlab.graphics.shapes import String
 
     # LEFT SIDE: Patient Info (SHIFTED DOWN - lower positions)
-    patient_name_label = String(-30, 620, f"Name: {full_name}", 
+    patient_name_label = String(-30, 670, f"Name: {full_name}", 
                            fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(patient_name_label)
 
-    patient_age_label = String(-30, 600, f"Age: {age}", 
+    patient_age_label = String(-30, 650, f"Age: {age}", 
                           fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(patient_age_label)
 
-    patient_gender_label = String(-30, 580, f"Gender: {gender}", 
+    patient_gender_label = String(-30, 630, f"Gender: {gender}", 
                              fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(patient_gender_label)
 
@@ -939,31 +1001,57 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     QT = data.get('QT', 354)
     QTc = data.get('QTc', 260)
     ST = data.get('ST', 114)
-
+    # DYNAMIC RR interval calculation from heart rate (instead of hard-coded 857)
+    RR = int(60000 / HR) if HR and HR > 0 else 857  # RR interval in ms from heart rate
+   
     # Add vital parameters SHIFTED LEFT at same Y levels with REDUCED GAP
-    hr_label = String(180, 620, f"HR  : {HR} bpm", 
+    hr_label = String(130, 670, f"HR  : {HR} bpm", 
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(hr_label)
 
-    qt_label = String(280, 620, f"QT  : {QT} ms", 
+    qt_label = String(280, 670, f"QT  : {QT} ms", 
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(qt_label)
 
-    pr_label = String(180, 600, f"PR  : {PR} ms", 
+    pr_label = String(130, 650, f"PR  : {PR} ms", 
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(pr_label)
 
-    qtc_label = String(280, 600, f"QTc: {QTc} ms", 
+    qtc_label = String(280, 650, f"QTc: {QTc} ms", 
                       fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(qtc_label)
 
-    qrs_label = String(180, 580, f"QRS: {QRS} ms", 
+    qrs_label = String(130, 630, f"QRS: {QRS} ms", 
                       fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(qrs_label)
 
-    st_label = String(280, 580, f"ST  : {ST} ms", 
+    st_label = String(280, 630, f"ST  : {ST} ms", 
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(st_label)
+    
+    # DYNAMIC RR interval (calculated from HR instead of hard-coded)
+    rr_label = String(130, 612, f"RR  : {RR} ms", 
+                     fontSize=10, fontName="Helvetica", fillColor=colors.black)
+    master_drawing.add(rr_label)
+
+    # HARD-CODED additional parameters below vitals (left aligned, fixed values)
+    p_qrs_label = String(130, 596, "P/QRS/T = 12/37/34", 
+                         fontSize=10, fontName="Helvetica", fillColor=colors.black)
+    master_drawing.add(p_qrs_label)
+
+    rv5_sv_label = String(130, 580, "RV5/SV1 = 1.260/0.786", 
+                          fontSize=10, fontName="Helvetica", fillColor=colors.black)
+    master_drawing.add(rv5_sv_label)
+
+    rv5_sv1_sum_label = String(280, 612, "RV5+SV1 = 0.512", 
+                               fontSize=10, fontName="Helvetica", fillColor=colors.black)
+    master_drawing.add(rv5_sv1_sum_label)
+
+    otcf_label = String(280, 596, "OTCF = 0.049", 
+                        fontSize=10, fontName="Helvetica", fillColor=colors.black)
+    master_drawing.add(otcf_label)
+
+    
 
     # Doctor Name (BOTTOM LEFT - existing code)
     
@@ -997,50 +1085,79 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                               fontSize=10, fontName="Helvetica-Bold", fillColor=colors.black)
     master_drawing.add(doctor_sign_label)
 
-    # Add RIGHT-SIDE Conclusion Box (moved to the right)
-    conclusion_y_start = -90  # Higher up (was -120)
+    # Add RIGHT-SIDE Conclusion Box (moved to the right) - NOW DYNAMIC FROM DASHBOARD (8 conclusions max)
+    conclusion_y_start = -80  # Higher up (was -120)
     
-    # Create a rectangular box for conclusions (shifted right) - SAME POSITION
+    # Create a rectangular box for conclusions (shifted right) - INCREASED HEIGHT
     from reportlab.graphics.shapes import Rect
-    conclusion_box = Rect(200, conclusion_y_start - 35, 300, 55,  # x shifted from 50 to 200
+    conclusion_box = Rect(200, conclusion_y_start - 45, 340, 65,  # INCREASED height from 55 to 65, bottom from -35 to -40
                          fillColor=None, strokeColor=colors.black, strokeWidth=1)
     master_drawing.add(conclusion_box)
     
-    # CENTERED and STYLISH "Conclusion" header
+    # CENTERED and STYLISH "Conclusion" header - DYNAMIC
     # Box center: 200 + (300/2) = 350, so text should be centered around 350
     conclusion_header = String(350, conclusion_y_start + 8, "✦ CONCLUSION ✦", 
                               fontSize=11, fontName="Helvetica-Bold", 
                               fillColor=colors.HexColor("#2c3e50"),
-                              textAnchor="middle")  # This centers the text₹
+                              textAnchor="middle")  # This centers the text
     master_drawing.add(conclusion_header)
     
-    # Column 1: First 3 conclusions (left side of box)
-    conc1 = String(210, conclusion_y_start - 5, "1. Sinus Rhythm", 
-                   fontSize=8, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(conc1)
+    # DYNAMIC conclusions from dashboard in the box (8 conclusions max)
+    # Split conclusions into FOUR ROWS (2 conclusions per row) - INCREASED SPACING
+    row1_conclusions = dashboard_conclusions[:2]   # First 2 conclusions (1-2)
+    row2_conclusions = dashboard_conclusions[2:4]  # Next 2 conclusions (3-4)
+    row3_conclusions = dashboard_conclusions[4:6]  # Next 2 conclusions (5-6)
+    row4_conclusions = dashboard_conclusions[6:8]  # Last 2 conclusions (7-8)
     
-    conc2 = String(210, conclusion_y_start - 15, "2. PAC (Premature)", 
-                   fontSize=8, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(conc2)
+    # ROW 1: Conclusions 1-2 (2 conclusions per row) - INCREASED SPACING
+    row1_y = conclusion_y_start - 5  # Fixed Y position for row 1
+    for i, conclusion in enumerate(row1_conclusions):
+        # FIXED: Show ALL conclusions (including empty ones)
+        display_conclusion = conclusion[:35] + "..." if len(conclusion) > 35 else (conclusion if conclusion.strip() else "---")
+        conc_text = f"{i+1}. {display_conclusion}"
+        # Position horizontally across the box (2 conclusions per row)
+        x_pos = 210 + (i * 140)  # 140 points spacing for 2 conclusions per row
+        conc = String(x_pos, row1_y, conc_text, 
+                     fontSize=8, fontName="Helvetica", fillColor=colors.black)
+        master_drawing.add(conc)
     
-    conc3 = String(210, conclusion_y_start - 25, "3. Couplet of PAC", 
-                   fontSize=8, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(conc3)
+    # ROW 2: Conclusions 3-4 (2 conclusions per row) - INCREASED SPACING
+    row2_y = conclusion_y_start - 17  # INCREASED spacing from -15 to -17 (2 points more gap)
+    for i, conclusion in enumerate(row2_conclusions):
+        # FIXED: Show ALL conclusions (including empty ones)
+        display_conclusion = conclusion[:35] + "..." if len(conclusion) > 35 else (conclusion if conclusion.strip() else "---")
+        conc_text = f"{i+3}. {display_conclusion}"  # Start numbering from 3
+        # Position horizontally across the box (2 conclusions per row)
+        x_pos = 210 + (i * 140)  # 140 points spacing for 2 conclusions per row
+        conc = String(x_pos, row2_y, conc_text, 
+                     fontSize=8, fontName="Helvetica", fillColor=colors.black)
+        master_drawing.add(conc)
     
-    # Column 2: Next 3 conclusions (right side of box)
-    conc4 = String(350, conclusion_y_start - 5, "4. PAC Trigeminy", 
-                   fontSize=8, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(conc4)
+    # ROW 3: Conclusions 5-6 (2 conclusions per row) - INCREASED SPACING
+    row3_y = conclusion_y_start - 29  # INCREASED spacing from -25 to -29 (4 points more gap)
+    for i, conclusion in enumerate(row3_conclusions):
+        # FIXED: Show ALL conclusions (including empty ones)
+        display_conclusion = conclusion[:35] + "..." if len(conclusion) > 35 else (conclusion if conclusion.strip() else "---")
+        conc_text = f"{i+5}. {display_conclusion}"  # Start numbering from 5
+        # Position horizontally across the box (2 conclusions per row)
+        x_pos = 210 + (i * 140)  # 140 points spacing for 2 conclusions per row
+        conc = String(x_pos, row3_y, conc_text, 
+                     fontSize=8, fontName="Helvetica", fillColor=colors.black)
+        master_drawing.add(conc)
     
-    conc5 = String(350, conclusion_y_start - 15, "5. Supraventricular", 
-                   fontSize=8, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(conc5)
-    
-    conc6 = String(350, conclusion_y_start - 25, "6. Normal ECG", 
-                   fontSize=8, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(conc6)
+    # ROW 4: Conclusions 7-8 (2 conclusions per row) - INCREASED SPACING
+    row4_y = conclusion_y_start - 41  # INCREASED spacing from -35 to -41 (6 points more gap)
+    for i, conclusion in enumerate(row4_conclusions):
+        # FIXED: Show ALL conclusions (including empty ones)
+        display_conclusion = conclusion[:35] + "..." if len(conclusion) > 35 else (conclusion if conclusion.strip() else "---")
+        conc_text = f"{i+7}. {display_conclusion}"  # Start numbering from 7
+        # Position horizontally across the box (2 conclusions per row)
+        x_pos = 210 + (i * 140)  # 140 points spacing for 2 conclusions per row
+        conc = String(x_pos, row4_y, conc_text, 
+                     fontSize=8, fontName="Helvetica", fillColor=colors.black)
+        master_drawing.add(conc)
 
-    print(" Added Patient Info, Vital Parameters, Conclusions in Box, and Doctor Name/Signature to ECG grid")
+    print(" Added Patient Info, Vital Parameters, ALL 8 Conclusions from Dashboard in 4 ROWS (2 conclusions per row), and Doctor Name/Signature to ECG grid")
     
     # STEP 5: Add SINGLE master drawing to story (NO containers)
     story.append(master_drawing)
@@ -1083,9 +1200,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             canvas.rect(0, 0, page_width, page_height, fill=1, stroke=0)
             
             # ECG grid colors - SAME as existing
-            light_grid_color = colors.HexColor("#ffcccc")  # Light pink minor grid
+            light_grid_color = colors.HexColor("#ffeeee")  
             
-            major_grid_color = colors.HexColor("#ff9999")   # Darker pink major grid
+            major_grid_color = colors.HexColor("#ffe0e0")   
             
             # Draw minor grid lines (1mm spacing) - FULL PAGE
             canvas.setStrokeColor(light_grid_color)
@@ -1158,7 +1275,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
         # Center the footer text at bottom of page
         text_width = canvas.stringWidth(footer_text, "Helvetica", 8)
         x = (doc.width + doc.leftMargin + doc.rightMargin - text_width) / 2
-        y = 20  # 20 points from bottom
+        y = 10  # 20 points from bottom
         canvas.drawString(x, y, footer_text)
         canvas.restoreState()
 
