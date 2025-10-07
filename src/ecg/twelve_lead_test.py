@@ -1539,6 +1539,11 @@ class ECGTestPage(QWidget):
 
     def calculate_ecg_metrics(self):
         """Calculate ECG metrics: Heart Rate, PR Interval, QRS Complex, QRS Axis, ST Interval, QTc"""
+
+        if hasattr(self, 'demo_toggle') and self.demo_toggle.isChecked():
+            print("🔍 Demo mode active - skipping live ECG metrics calculation")
+            return
+
         if len(self.data) < 2:  # Need at least Lead II for analysis
             return
         
@@ -2512,8 +2517,22 @@ class ECGTestPage(QWidget):
     def showEvent(self, event):
         """Called when the ECG test page is shown - reset metrics to zero"""
         super().showEvent(event)
-        # Reset metrics to zero when page is shown
-        self.reset_metrics_to_zero()
+
+        # Check if demo mode is active
+        if hasattr(self, 'demo_toggle') and self.demo_toggle.isChecked():
+            # Demo mode is active - set fixed demo values instead of resetting to zero
+            print("🔍 Page shown with demo mode active - setting fixed demo values")
+            if hasattr(self, 'metric_labels'):
+                self.metric_labels.get('heart_rate', QLabel()).setText("60")
+                self.metric_labels.get('pr_interval', QLabel()).setText("160")
+                self.metric_labels.get('qrs_duration', QLabel()).setText("85")
+                self.metric_labels.get('qrs_axis', QLabel()).setText("0°")
+                self.metric_labels.get('st_interval', QLabel()).setText("90")
+                if 'qtc_interval' in self.metric_labels:
+                    self.metric_labels['qtc_interval'].setText("400/430")
+        else:
+            # Demo mode is not active - reset metrics to zero
+            self.reset_metrics_to_zero()
 
     # ------------------------ Calculate ECG Intervals ------------------------
 
@@ -4967,7 +4986,7 @@ class ECGTestPage(QWidget):
             from PyQt5.QtGui import QPixmap
             import matplotlib.image as mpimg
             
-            bg_path = "ecg_bgimg_test.png"
+            bg_path = "ecg_pink_grid_fullpage.png"
             if os.path.exists(bg_path):
                 # Load the background image
                 bg_img = QPixmap(bg_path)
