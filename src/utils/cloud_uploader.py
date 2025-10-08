@@ -1,0 +1,404 @@
+"""
+Cloud Uploader Module for ECG Reports
+Supports multiple cloud storage services for automatic report backup
+"""
+
+import os
+import json
+import requests
+from pathlib import Path
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+
+class CloudUploader:
+    """Handle uploading ECG reports to cloud storage"""
+    
+    def __init__(self):
+        self.cloud_service = os.getenv('CLOUD_SERVICE', 'none').lower()
+        self.upload_enabled = os.getenv('CLOUD_UPLOAD_ENABLED', 'false').lower() == 'true'
+        
+        # AWS S3 Configuration
+        self.s3_bucket = os.getenv('AWS_S3_BUCKET')
+        self.s3_region = os.getenv('AWS_S3_REGION', 'us-east-1')
+        self.aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        self.aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        
+        # Azure Blob Storage Configuration
+        self.azure_connection_string = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+        self.azure_container = os.getenv('AZURE_CONTAINER_NAME', 'ecg-reports')
+        
+        # Google Cloud Storage Configuration
+        self.gcs_bucket = os.getenv('GCS_BUCKET_NAME')
+        self.gcs_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        # Custom API Endpoint Configuration
+        self.api_endpoint = os.getenv('CLOUD_API_ENDPOINT')
+        self.api_key = os.getenv('CLOUD_API_KEY')
+        
+        # FTP/SFTP Configuration
+        self.ftp_host = os.getenv('FTP_HOST')
+        self.ftp_port = int(os.getenv('FTP_PORT', '21'))
+        self.ftp_username = os.getenv('FTP_USERNAME')
+        self.ftp_password = os.getenv('FTP_PASSWORD')
+        self.ftp_remote_path = os.getenv('FTP_REMOTE_PATH', '/ecg-reports')
+        
+        # Dropbox Configuration
+        self.dropbox_token = os.getenv('DROPBOX_ACCESS_TOKEN')
+        
+        # Log file for upload tracking
+        self.upload_log_path = "reports/upload_log.json"
+        
+    def is_configured(self):
+        """Check if cloud upload is properly configured"""
+        if not self.upload_enabled:
+            return False
+            
+        if self.cloud_service == 's3':
+            return bool(self.s3_bucket and self.aws_access_key and self.aws_secret_key)
+        elif self.cloud_service == 'azure':
+            return bool(self.azure_connection_string)
+        elif self.cloud_service == 'gcs':
+            return bool(self.gcs_bucket and self.gcs_credentials_path)
+        elif self.cloud_service == 'api':
+            return bool(self.api_endpoint)
+        elif self.cloud_service == 'ftp' or self.cloud_service == 'sftp':
+            return bool(self.ftp_host and self.ftp_username)
+        elif self.cloud_service == 'dropbox':
+            return bool(self.dropbox_token)
+        
+        return False
+    
+    def upload_report(self, file_path, metadata=None):
+        """
+        Upload a report file to cloud storage
+        
+        Args:
+            file_path (str): Path to the report file (PDF, JSON, etc.)
+            metadata (dict): Optional metadata about the report
+            
+        Returns:
+            dict: Upload result with status, url, and error if any
+        """
+        if not self.upload_enabled:
+            return {"status": "disabled", "message": "Cloud upload is disabled"}
+            
+        if not self.is_configured():
+            return {"status": "error", "message": f"Cloud service '{self.cloud_service}' is not properly configured"}
+        
+        try:
+            # Prepare metadata
+            upload_metadata = {
+                "filename": os.path.basename(file_path),
+                "uploaded_at": datetime.now().isoformat(),
+                "file_size": os.path.getsize(file_path),
+                "file_type": Path(file_path).suffix,
+            }
+            if metadata:
+                upload_metadata.update(metadata)
+            
+            # Upload based on configured service
+            if self.cloud_service == 's3':
+                result = self._upload_to_s3(file_path, upload_metadata)
+            elif self.cloud_service == 'azure':
+                result = self._upload_to_azure(file_path, upload_metadata)
+            elif self.cloud_service == 'gcs':
+                result = self._upload_to_gcs(file_path, upload_metadata)
+            elif self.cloud_service == 'api':
+                result = self._upload_to_api(file_path, upload_metadata)
+            elif self.cloud_service == 'ftp':
+                result = self._upload_to_ftp(file_path, upload_metadata, use_sftp=False)
+            elif self.cloud_service == 'sftp':
+                result = self._upload_to_ftp(file_path, upload_metadata, use_sftp=True)
+            elif self.cloud_service == 'dropbox':
+                result = self._upload_to_dropbox(file_path, upload_metadata)
+            else:
+                result = {"status": "error", "message": f"Unknown cloud service: {self.cloud_service}"}
+            
+            # Log the upload
+            if result.get("status") == "success":
+                self._log_upload(file_path, result, upload_metadata)
+            
+            return result
+            
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    def _upload_to_s3(self, file_path, metadata):
+        """Upload to AWS S3"""
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+            
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=self.aws_access_key,
+                aws_secret_access_key=self.aws_secret_key,
+                region_name=self.s3_region
+            )
+            
+            # Generate S3 key
+            filename = os.path.basename(file_path)
+            timestamp = datetime.now().strftime("%Y/%m/%d")
+            s3_key = f"ecg-reports/{timestamp}/{filename}"
+            
+            # Upload file
+            s3_client.upload_file(
+                file_path,
+                self.s3_bucket,
+                s3_key,
+                ExtraArgs={'Metadata': {k: str(v) for k, v in metadata.items()}}
+            )
+            
+            # Generate presigned URL (optional)
+            url = f"https://{self.s3_bucket}.s3.{self.s3_region}.amazonaws.com/{s3_key}"
+            
+            return {
+                "status": "success",
+                "service": "s3",
+                "url": url,
+                "key": s3_key,
+                "bucket": self.s3_bucket
+            }
+            
+        except ImportError:
+            return {"status": "error", "message": "boto3 not installed. Run: pip install boto3"}
+        except ClientError as e:
+            return {"status": "error", "message": f"S3 upload failed: {str(e)}"}
+    
+    def _upload_to_azure(self, file_path, metadata):
+        """Upload to Azure Blob Storage"""
+        try:
+            from azure.storage.blob import BlobServiceClient
+            
+            blob_service_client = BlobServiceClient.from_connection_string(self.azure_connection_string)
+            container_client = blob_service_client.get_container_client(self.azure_container)
+            
+            # Ensure container exists
+            try:
+                container_client.create_container()
+            except Exception:
+                pass  # Container already exists
+            
+            # Generate blob name
+            filename = os.path.basename(file_path)
+            timestamp = datetime.now().strftime("%Y/%m/%d")
+            blob_name = f"ecg-reports/{timestamp}/{filename}"
+            
+            # Upload file
+            blob_client = container_client.get_blob_client(blob_name)
+            with open(file_path, "rb") as data:
+                blob_client.upload_blob(data, overwrite=True, metadata=metadata)
+            
+            url = blob_client.url
+            
+            return {
+                "status": "success",
+                "service": "azure",
+                "url": url,
+                "blob_name": blob_name,
+                "container": self.azure_container
+            }
+            
+        except ImportError:
+            return {"status": "error", "message": "azure-storage-blob not installed. Run: pip install azure-storage-blob"}
+        except Exception as e:
+            return {"status": "error", "message": f"Azure upload failed: {str(e)}"}
+    
+    def _upload_to_gcs(self, file_path, metadata):
+        """Upload to Google Cloud Storage"""
+        try:
+            from google.cloud import storage
+            
+            storage_client = storage.Client.from_service_account_json(self.gcs_credentials_path)
+            bucket = storage_client.bucket(self.gcs_bucket)
+            
+            # Generate blob name
+            filename = os.path.basename(file_path)
+            timestamp = datetime.now().strftime("%Y/%m/%d")
+            blob_name = f"ecg-reports/{timestamp}/{filename}"
+            
+            # Upload file
+            blob = bucket.blob(blob_name)
+            blob.metadata = metadata
+            blob.upload_from_filename(file_path)
+            
+            url = blob.public_url
+            
+            return {
+                "status": "success",
+                "service": "gcs",
+                "url": url,
+                "blob_name": blob_name,
+                "bucket": self.gcs_bucket
+            }
+            
+        except ImportError:
+            return {"status": "error", "message": "google-cloud-storage not installed. Run: pip install google-cloud-storage"}
+        except Exception as e:
+            return {"status": "error", "message": f"GCS upload failed: {str(e)}"}
+    
+    def _upload_to_api(self, file_path, metadata):
+        """Upload to custom API endpoint"""
+        try:
+            with open(file_path, 'rb') as f:
+                files = {'file': f}
+                headers = {}
+                if self.api_key:
+                    headers['Authorization'] = f'Bearer {self.api_key}'
+                
+                data = {'metadata': json.dumps(metadata)}
+                
+                response = requests.post(
+                    self.api_endpoint,
+                    files=files,
+                    data=data,
+                    headers=headers,
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    result = response.json() if response.content else {}
+                    return {
+                        "status": "success",
+                        "service": "api",
+                        "response": result,
+                        "url": result.get('url', self.api_endpoint)
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": f"API returned status {response.status_code}: {response.text}"
+                    }
+                    
+        except Exception as e:
+            return {"status": "error", "message": f"API upload failed: {str(e)}"}
+    
+    def _upload_to_ftp(self, file_path, metadata, use_sftp=False):
+        """Upload to FTP/SFTP server"""
+        try:
+            if use_sftp:
+                import paramiko
+                
+                transport = paramiko.Transport((self.ftp_host, self.ftp_port))
+                transport.connect(username=self.ftp_username, password=self.ftp_password)
+                sftp = paramiko.SFTPClient.from_transport(transport)
+                
+                # Create remote directory if needed
+                remote_file = f"{self.ftp_remote_path}/{os.path.basename(file_path)}"
+                sftp.put(file_path, remote_file)
+                sftp.close()
+                transport.close()
+                
+            else:
+                from ftplib import FTP
+                
+                ftp = FTP()
+                ftp.connect(self.ftp_host, self.ftp_port)
+                ftp.login(self.ftp_username, self.ftp_password)
+                
+                # Upload file
+                with open(file_path, 'rb') as f:
+                    remote_file = f"{self.ftp_remote_path}/{os.path.basename(file_path)}"
+                    ftp.storbinary(f'STOR {remote_file}', f)
+                
+                ftp.quit()
+            
+            return {
+                "status": "success",
+                "service": "sftp" if use_sftp else "ftp",
+                "remote_path": remote_file
+            }
+            
+        except ImportError:
+            return {"status": "error", "message": "paramiko not installed for SFTP. Run: pip install paramiko"}
+        except Exception as e:
+            return {"status": "error", "message": f"FTP upload failed: {str(e)}"}
+    
+    def _upload_to_dropbox(self, file_path, metadata):
+        """Upload to Dropbox"""
+        try:
+            import dropbox
+            
+            dbx = dropbox.Dropbox(self.dropbox_token)
+            
+            # Generate Dropbox path
+            filename = os.path.basename(file_path)
+            timestamp = datetime.now().strftime("%Y/%m/%d")
+            dropbox_path = f"/ECG-Reports/{timestamp}/{filename}"
+            
+            # Upload file
+            with open(file_path, 'rb') as f:
+                dbx.files_upload(f.read(), dropbox_path, mode=dropbox.files.WriteMode.overwrite)
+            
+            # Get shareable link
+            try:
+                link = dbx.sharing_create_shared_link(dropbox_path)
+                url = link.url
+            except:
+                url = dropbox_path
+            
+            return {
+                "status": "success",
+                "service": "dropbox",
+                "url": url,
+                "path": dropbox_path
+            }
+            
+        except ImportError:
+            return {"status": "error", "message": "dropbox not installed. Run: pip install dropbox"}
+        except Exception as e:
+            return {"status": "error", "message": f"Dropbox upload failed: {str(e)}"}
+    
+    def _log_upload(self, file_path, result, metadata):
+        """Log successful upload to tracking file"""
+        try:
+            # Load existing log
+            log_data = []
+            if os.path.exists(self.upload_log_path):
+                with open(self.upload_log_path, 'r') as f:
+                    log_data = json.load(f)
+            
+            # Add new entry
+            log_entry = {
+                "local_path": file_path,
+                "uploaded_at": datetime.now().isoformat(),
+                "service": self.cloud_service,
+                "result": result,
+                "metadata": metadata
+            }
+            log_data.append(log_entry)
+            
+            # Save log
+            os.makedirs(os.path.dirname(self.upload_log_path), exist_ok=True)
+            with open(self.upload_log_path, 'w') as f:
+                json.dump(log_data, f, indent=2)
+                
+        except Exception as e:
+            print(f"Warning: Could not log upload: {e}")
+    
+    def get_upload_history(self, limit=50):
+        """Get recent upload history"""
+        try:
+            if os.path.exists(self.upload_log_path):
+                with open(self.upload_log_path, 'r') as f:
+                    log_data = json.load(f)
+                return log_data[-limit:]
+            return []
+        except Exception:
+            return []
+
+
+# Global instance
+_cloud_uploader = None
+
+def get_cloud_uploader():
+    """Get or create global cloud uploader instance"""
+    global _cloud_uploader
+    if _cloud_uploader is None:
+        _cloud_uploader = CloudUploader()
+    return _cloud_uploader
+

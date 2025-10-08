@@ -1282,6 +1282,42 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     # Build PDF
     doc.build(story, onFirstPage=_draw_logo_and_footer, onLaterPages=_draw_logo_and_footer)
     print(f"✓ ECG Report generated: {filename}")
+    
+    # Upload to cloud if configured
+    try:
+        import sys
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from utils.cloud_uploader import get_cloud_uploader
+        
+        cloud_uploader = get_cloud_uploader()
+        if cloud_uploader.is_configured():
+            print(f"☁️  Uploading report to cloud ({cloud_uploader.cloud_service})...")
+            
+            # Prepare metadata
+            upload_metadata = {
+                "patient_name": data.get('patient', {}).get('name', 'Unknown'),
+                "patient_age": str(data.get('patient', {}).get('age', '')),
+                "report_date": data.get('date', ''),
+                "machine_serial": data.get('machine_serial', ''),
+                "heart_rate": str(data.get('Heart_Rate', '')),
+            }
+            
+            # Upload the report
+            result = cloud_uploader.upload_report(filename, metadata=upload_metadata)
+            
+            if result.get('status') == 'success':
+                print(f"✓ Report uploaded successfully to {cloud_uploader.cloud_service}")
+                if 'url' in result:
+                    print(f"  URL: {result['url']}")
+            else:
+                print(f"⚠️  Cloud upload failed: {result.get('message', 'Unknown error')}")
+        else:
+            print("ℹ️  Cloud upload not configured (see cloud_config_template.txt)")
+            
+    except ImportError:
+        print("ℹ️  Cloud uploader not available")
+    except Exception as e:
+        print(f"⚠️  Cloud upload error: {e}")
 
 
 # REMOVE ENTIRE create_sample_ecg_images function (lines ~1222-1257)
