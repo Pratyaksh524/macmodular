@@ -74,7 +74,8 @@ class CloudUploader:
     
     def upload_report(self, file_path, metadata=None):
         """
-        Upload a report file to cloud storage
+        Upload ONLY reports, metrics, and report files to AWS S3
+        Does NOT upload: session logs, debug data, crash logs, temp files
         
         Args:
             file_path (str): Path to the report file (PDF, JSON, etc.)
@@ -90,15 +91,39 @@ class CloudUploader:
             return {"status": "error", "message": f"Cloud service '{self.cloud_service}' is not properly configured"}
         
         try:
-            # Prepare metadata
+            # Check if this is a report file (PDF or JSON report)
+            file_ext = Path(file_path).suffix.lower()
+            file_basename = os.path.basename(file_path).lower()
+            
+            # ONLY upload reports and metrics - filter out everything else
+            allowed_extensions = ['.pdf', '.json']
+            is_report = file_ext in allowed_extensions and 'report' in file_basename
+            is_metric = file_ext == '.json' and 'metric' in file_basename
+            
+            if not (is_report or is_metric):
+                return {
+                    "status": "skipped",
+                    "message": f"File {file_basename} is not a report or metric file - not uploaded"
+                }
+            
+            # Prepare metadata - ONLY include essential report information
             upload_metadata = {
                 "filename": os.path.basename(file_path),
                 "uploaded_at": datetime.now().isoformat(),
                 "file_size": os.path.getsize(file_path),
                 "file_type": Path(file_path).suffix,
             }
+            
+            # Only add specific metadata fields if provided
             if metadata:
-                upload_metadata.update(metadata)
+                # Filter metadata to only include report-related fields
+                allowed_keys = [
+                    'patient_name', 'patient_age', 'report_date', 'machine_serial',
+                    'heart_rate', 'pr_interval', 'qrs_duration', 'qtc_interval',
+                    'st_segment', 'qrs_axis'
+                ]
+                filtered_metadata = {k: v for k, v in metadata.items() if k in allowed_keys}
+                upload_metadata.update(filtered_metadata)
             
             # Upload based on configured service
             if self.cloud_service == 's3':
