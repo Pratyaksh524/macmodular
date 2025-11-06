@@ -1321,25 +1321,30 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
         except Exception as e:
             print(f"⚠️ Fallback RV5/SV1 computation failed: {e}")
 
-    # Values from calculate_wave_amplitudes() are in microvolts (μV)
-    # Values are correct - just need to fix the unit label
-    rv5_uv = rv5_amp if rv5_amp > 0 else 1260.0  # In μV, fallback 1260 μV
-    sv1_uv = sv1_amp if sv1_amp > 0 else 786.0  # In μV, fallback 786 μV
+    # Sokolow-Lyon Index Calculation (Medical Standard)
+    # RV5 = R-wave amplitude in Lead V5 (mm on ECG paper, where 1mV = 10mm)
+    # SV1 = S-wave amplitude in Lead V1 (mm on ECG paper, where 1mV = 10mm)
+    # Sokolow-Lyon = RV5 + SV1 (in mm)
     
-    print(f"   RV5={rv5_uv:.3f} μV, SV1={sv1_uv:.3f} μV (values are in microvolts)")
+    # Values from calculate_wave_amplitudes() are in mV
+    # Convert to mm using standard ECG calibration: 1 mV = 10 mm
+    rv5_mm = (rv5_amp * 10) if rv5_amp > 0 else 12.6  # Convert mV to mm, fallback 12.6 mm
+    sv1_mm = (sv1_amp * 10) if sv1_amp > 0 else 7.9  # Convert mV to mm, fallback 7.9 mm
     
-    # SECOND COLUMN - RV5/SV1 (in microvolts - correct unit label)
-    rv5_sv_label = String(240, 650, f"RV5/SV1  : {rv5_uv:.3f}/{sv1_uv:.3f} μV", 
+    print(f"   RV5={rv5_mm:.1f} mm, SV1={sv1_mm:.1f} mm (converted from mV using 1mV=10mm)")
+    
+    # SECOND COLUMN - RV5/SV1 (in millimeters on ECG paper - medical standard)
+    rv5_sv_label = String(240, 650, f"RV5/SV1  : {rv5_mm:.1f}/{sv1_mm:.1f} mm", 
                           fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(rv5_sv_label)
 
-    # Calculate RV5+SV1 sum (Sokolow-Lyon Index for LVH detection)
-    rv5_sv1_sum = rv5_uv + sv1_uv
+    # Calculate Sokolow-Lyon Index: SV1 + RV5 (in mm)
+    sokolow_lyon_mm = sv1_mm + rv5_mm
     
-    # SECOND COLUMN - RV5+SV1 (in microvolts - correct unit label)
-    rv5_sv1_sum_label = String(240, 630, f"RV5+SV1  : {rv5_sv1_sum:.3f} μV", 
-                               fontSize=10, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(rv5_sv1_sum_label)
+    # SECOND COLUMN - Sokolow-Lyon Index (SV1 + RV5 in millimeters)
+    sokolow_label = String(240, 630, f"SV1+RV5  : {sokolow_lyon_mm:.1f} mm", 
+                           fontSize=10, fontName="Helvetica", fillColor=colors.black)
+    master_drawing.add(sokolow_label)
 
     # QTCF removed - not a standard ECG parameter
     # QTc (Bazett's formula) is already calculated and displayed above
@@ -1618,9 +1623,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                 "QTc_ms": QTc,
                 "ST_ms": ST,
                 "RR_ms": RR,
-                "RV5_plus_SV1_uV": round(rv5_sv1_sum, 1),  # Microvolts
+                "Sokolow_Lyon_mm": round(sokolow_lyon_mm, 1),  # Sokolow-Lyon Index in mm
                 "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],
-                "RV5_SV1_uV": [round(rv5_uv, 1), round(sv1_uv, 1)],  # Microvolts
+                "RV5_SV1_mm": [round(rv5_mm, 1), round(sv1_mm, 1)],  # In millimeters
             }
         }
 
@@ -1654,9 +1659,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             "QTc_ms": QTc,
             "ST_ms": ST,
             "RR_ms": RR,
-            "RV5_plus_SV1_uV": round(rv5_sv1_sum, 1),  # Microvolts
+            "Sokolow_Lyon_mm": round(sokolow_lyon_mm, 1),  # Sokolow-Lyon Index in mm
             "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],
-            "RV5_SV1_uV": [round(rv5_uv, 1), round(sv1_uv, 1)]  # Microvolts
+            "RV5_SV1_mm": [round(rv5_mm, 1), round(sv1_mm, 1)]  # In millimeters
         }
 
         metrics_list = []
