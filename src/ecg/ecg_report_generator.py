@@ -1322,27 +1322,28 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             print(f"⚠️ Fallback RV5/SV1 computation failed: {e}")
 
     # Sokolow-Lyon Index Calculation (Medical Standard)
-    # RV5 = R-wave amplitude in Lead V5 (mm on ECG paper, where 1mV = 10mm)
-    # SV1 = S-wave amplitude in Lead V1 (mm on ECG paper, where 1mV = 10mm)
-    # Sokolow-Lyon = RV5 + SV1 (in mm)
+    # RV5 = R-wave amplitude in Lead V5 (measured in mV, displayed in mV)
+    # SV1 = S-wave amplitude in Lead V1 (measured in mV, displayed in mV)
+    # Sokolow-Lyon = SV1 + RV5 (in mV)
     
-    # Values from calculate_wave_amplitudes() are in mV
-    # Convert to mm using standard ECG calibration: 1 mV = 10 mm
-    rv5_mm = (rv5_amp * 10) if rv5_amp > 0 else 12.6  # Convert mV to mm, fallback 12.6 mm
-    sv1_mm = (sv1_amp * 10) if sv1_amp > 0 else 7.9  # Convert mV to mm, fallback 7.9 mm
+    # Values from calculate_wave_amplitudes() are in microvolts (μV)
+    # Convert to millivolts: 1 mV = 1000 μV
+    rv5_mv = (rv5_amp / 1000) if rv5_amp > 0 else 1.26  # Convert μV to mV, fallback 1.26 mV
+    sv1_mv = (sv1_amp / 1000) if sv1_amp > 0 else 0.79  # Convert μV to mV, fallback 0.79 mV
     
-    print(f"   RV5={rv5_mm:.1f} mm, SV1={sv1_mm:.1f} mm (converted from mV using 1mV=10mm)")
+    print(f"   RV5={rv5_mv:.2f} mV, SV1={sv1_mv:.2f} mV (converted from μV: rv5_amp={rv5_amp}, sv1_amp={sv1_amp})")
     
-    # SECOND COLUMN - RV5/SV1 (in millimeters on ECG paper - medical standard)
-    rv5_sv_label = String(240, 650, f"RV5/SV1  : {rv5_mm:.1f}/{sv1_mm:.1f} mm", 
+    # SECOND COLUMN - RV5/SV1 (in millivolts - medical standard)
+    rv5_sv_label = String(240, 650, f"RV5/SV1  : {rv5_mv:.2f}/{sv1_mv:.2f} mV", 
                           fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(rv5_sv_label)
 
-    # Calculate Sokolow-Lyon Index: SV1 + RV5 (in mm)
-    sokolow_lyon_mm = sv1_mm + rv5_mm
+    # Calculate Sokolow-Lyon Index: SV1 + RV5 (in mV)
+    # Medical Standard: Normal < 3.5 mV, LVH ≥ 3.5 mV
+    sokolow_lyon_mv = sv1_mv + rv5_mv
     
-    # SECOND COLUMN - Sokolow-Lyon Index (SV1 + RV5 in millimeters)
-    sokolow_label = String(240, 630, f"SV1+RV5  : {sokolow_lyon_mm:.1f} mm", 
+    # SECOND COLUMN - Sokolow-Lyon Index (SV1 + RV5 in millivolts)
+    sokolow_label = String(240, 630, f"SV1+RV5  : {sokolow_lyon_mv:.2f} mV", 
                            fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(sokolow_label)
 
@@ -1623,9 +1624,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                 "QTc_ms": QTc,
                 "ST_ms": ST,
                 "RR_ms": RR,
-                "Sokolow_Lyon_mm": round(sokolow_lyon_mm, 1),  # Sokolow-Lyon Index in mm
+                "Sokolow_Lyon_mV": round(sokolow_lyon_mv, 2),  # SV1+RV5 in mV
                 "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],
-                "RV5_SV1_mm": [round(rv5_mm, 1), round(sv1_mm, 1)],  # In millimeters
+                "RV5_SV1_mV": [round(rv5_mv, 2), round(sv1_mv, 2)],  # In millivolts
             }
         }
 
@@ -1659,9 +1660,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             "QTc_ms": QTc,
             "ST_ms": ST,
             "RR_ms": RR,
-            "Sokolow_Lyon_mm": round(sokolow_lyon_mm, 1),  # Sokolow-Lyon Index in mm
+            "Sokolow_Lyon_mV": round(sokolow_lyon_mv, 2),  # SV1+RV5 in mV
             "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],
-            "RV5_SV1_mm": [round(rv5_mm, 1), round(sv1_mm, 1)]  # In millimeters
+            "RV5_SV1_mV": [round(rv5_mv, 2), round(sv1_mv, 2)]  # In millivolts
         }
 
         metrics_list = []
