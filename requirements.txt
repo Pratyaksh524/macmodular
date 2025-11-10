@@ -43,6 +43,9 @@ pyparsing>=3.0.0
 # System Monitoring (for crash logger and diagnostics)
 psutil>=5.9.0
 
+# Security (for encrypted configuration)
+cryptography>=41.0.0
+
 # Optional: Enhanced Performance
 numba>=0.56.0
 
