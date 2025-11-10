@@ -918,34 +918,65 @@ class AdminReportsDialog(QDialog):
         self.latest_user_card._value_label.setText(latest_dt)
     
     def show_user_details(self, row, col):
-        """Show detailed information for selected user with ECG metrics and reports"""
+        """Show detailed information for selected user with ECG metrics and reports - CRASH-PROOF"""
         try:
+            print(f"🖱️ User clicked row {row}, col {col}")
+            
             users = getattr(self, '_filtered_users', [])
             if row < 0 or row >= len(users):
+                print(f"⚠️ Invalid row selection: {row}")
                 return
             
             user = users[row]
+            print(f"👤 Selected user: {user.get('full_name', 'Unknown')}")
             
             # Show loading state
-            self.user_details_text.setHtml("""
-                <div style='text-align:center; padding:40px; color:#ff6600;'>
-                    <b style='font-size:16px;'>⏳ Loading patient data...</b><br>
-                    <span style='font-size:12px; color:#666; margin-top:8px;'>
-                        Fetching ECG metrics and reports from cloud...
-                    </span>
-                </div>
-            """)
+            try:
+                self.user_details_text.setHtml("""
+                    <div style='text-align:center; padding:40px; color:#ff6600;'>
+                        <b style='font-size:16px;'>⏳ Loading patient data...</b><br>
+                        <span style='font-size:12px; color:#666; margin-top:8px;'>
+                            Fetching ECG metrics and reports from cloud...
+                        </span>
+                    </div>
+                """)
+            except Exception as html_err:
+                print(f"⚠️ Error showing loading state: {html_err}")
             
             # Show sidebar with animation
-            self.sidebar_frame.setVisible(True)
+            try:
+                if hasattr(self, 'sidebar_frame'):
+                    self.sidebar_frame.setVisible(True)
+                    print(f"✅ Sidebar opened")
+                else:
+                    print(f"⚠️ Sidebar frame not found - using inline display")
+            except Exception as sidebar_err:
+                print(f"⚠️ Error showing sidebar: {sidebar_err}")
             
-            # Process user selection
-            from PyQt5.QtCore import QTimer
-            QTimer.singleShot(50, lambda: self._load_user_details_async(user))
+            # Process user selection with delay to allow UI update
+            try:
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(50, lambda: self._load_user_details_async(user))
+            except Exception as timer_err:
+                print(f"❌ Error scheduling async load: {timer_err}")
+                # Fallback: load synchronously
+                self._load_user_details_async(user)
             
         except Exception as e:
+            print(f"❌ Critical error in show_user_details: {e}")
             import traceback
-            self.user_details_text.setPlainText(f"Error loading details: {e}\n\n{traceback.format_exc()}")
+            traceback.print_exc()
+            
+            # Don't crash - show error message
+            try:
+                self.user_details_text.setHtml("""
+                    <div style='padding:20px; text-align:center; color:#f44336;'>
+                        <b>⚠️ Error</b><br><br>
+                        Could not load patient details. Please try again.
+                    </div>
+                """)
+            except:
+                pass  # Silent fail - don't crash the entire app
     
     def close_sidebar(self):
         """Close the patient details sidebar"""
@@ -953,17 +984,36 @@ class AdminReportsDialog(QDialog):
         self.users_table.clearSelection()
     
     def _load_user_details_async(self, user):
-        """Load user details asynchronously to prevent UI freeze"""
+        """Load user details asynchronously to prevent UI freeze - CRASH-PROOF"""
         try:
+            print(f"📊 Loading details for user: {user.get('full_name', 'Unknown')}")
+            
             # Fetch patient reports and metrics from S3
             serial = user.get('serial_number', '')
             phone = user.get('phone', '')
             
-            # Get all reports for this patient
-            patient_reports = self.get_patient_reports(serial, phone)
+            # Wrap in try-catch to prevent crashes
+            patient_reports = []
+            latest_metrics = None
             
-            # Get latest ECG metrics from most recent report
-            latest_metrics = self.get_latest_patient_metrics(serial, phone)
+            try:
+                # Get all reports for this patient
+                patient_reports = self.get_patient_reports(serial, phone)
+                print(f"✅ Found {len(patient_reports)} reports for patient")
+            except Exception as e:
+                print(f"⚠️ Error fetching patient reports: {e}")
+                patient_reports = []
+            
+            try:
+                # Get latest ECG metrics from most recent report
+                latest_metrics = self.get_latest_patient_metrics(serial, phone)
+                if latest_metrics:
+                    print(f"✅ Loaded ECG metrics successfully")
+                else:
+                    print(f"⚠️ No metrics found for patient")
+            except Exception as e:
+                print(f"⚠️ Error fetching patient metrics: {e}")
+                latest_metrics = None
             
             # Build enhanced HTML with patient info, metrics, and reports
             html_parts = []
@@ -1062,19 +1112,49 @@ class AdminReportsDialog(QDialog):
             html_parts.append("</div>")
             html_parts.append("</div>")
             
-            self.user_details_text.setHtml("".join(html_parts))
+            # Safely set HTML - catch any rendering errors
+            try:
+                self.user_details_text.setHtml("".join(html_parts))
+                print(f"✅ Successfully displayed patient details for {user.get('full_name', 'Unknown')}")
+            except Exception as render_err:
+                print(f"❌ Error rendering HTML: {render_err}")
+                self.user_details_text.setPlainText(f"Patient: {user.get('full_name', 'Unknown')}\n\nError displaying details. Please try again.")
             
         except Exception as e:
+            print(f"❌ Critical error in _load_user_details_async: {e}")
             import traceback
-            self.user_details_text.setPlainText(f"Error loading details: {e}\n\n{traceback.format_exc()}")
+            traceback.print_exc()
+            
+            # Show user-friendly error message instead of crashing
+            try:
+                error_msg = str(e)[:100] if e else "Unknown error"
+                patient_name = user.get('full_name', 'Unknown') if isinstance(user, dict) else 'Unknown'
+                self.user_details_text.setHtml(f"""
+                    <div style='padding:20px; text-align:center;'>
+                        <b style='color:#f44336; font-size:16px;'>⚠️ Error Loading Patient Data</b><br><br>
+                        <span style='color:#666; font-size:13px;'>
+                            Unable to load details for this patient.<br>
+                            This might be due to network issues or missing data.<br><br>
+                            <b>Patient:</b> {patient_name}<br>
+                            <b>Error:</b> {error_msg}
+                        </span>
+                    </div>
+                """)
+            except:
+                # Last resort fallback
+                self.user_details_text.setPlainText("Error loading patient data. Please try again.")
     
     def get_patient_reports(self, serial, phone):
-        """Get all reports for a specific patient by checking JSON metadata"""
+        """Get all reports for a specific patient by checking JSON metadata - CRASH-PROOF"""
         try:
             all_reports = getattr(self, '_cached_reports', [])
+            if not all_reports:
+                print(f"⚠️ No cached reports available")
+                return []
+            
             patient_reports = []
             
-            print(f"🔍 Searching reports for patient: serial={serial}, phone={phone}")
+            print(f"🔍 Searching {len(all_reports)} reports for patient: serial={serial}, phone={phone}")
             
             # First, try filename matching (fast)
             for report in all_reports:
@@ -1090,38 +1170,50 @@ class AdminReportsDialog(QDialog):
             # If no reports found by filename, check JSON metadata (slower but thorough)
             if len(patient_reports) == 0 and (serial or phone):
                 print("📥 No filename matches, checking JSON metadata...")
-                import requests
                 
-                for report in all_reports:
-                    key = report.get('key', '')
-                    if not key.endswith('.pdf'):
-                        continue
-                    
-                    # Check corresponding JSON file
-                    json_key = key.replace('.pdf', '.json')
+                try:
+                    import requests
+                except ImportError:
+                    print("❌ requests module not available, skipping JSON metadata check")
+                    return []
+                
+                # Limit to first 20 reports to prevent timeout
+                reports_to_check = all_reports[:20]
+                print(f"📥 Checking {len(reports_to_check)} reports for metadata match...")
+                
+                for report in reports_to_check:
                     try:
+                        key = report.get('key', '')
+                        if not key.endswith('.pdf'):
+                            continue
+                        
+                        # Check corresponding JSON file
+                        json_key = key.replace('.pdf', '.json')
+                        
                         url_res = self.cloud_uploader.generate_presigned_url(json_key)
-                        if url_res.get('status') == 'success':
-                            r = requests.get(url_res['url'], timeout=3)
-                            if r.status_code == 200:
-                                json_data = r.json()
-                                
-                                # Check if this report belongs to the patient
-                                json_serial = json_data.get('machine_serial', '')
-                                json_phone = json_data.get('user', {}).get('phone', '')
-                                json_name = json_data.get('user', {}).get('name', '')
-                                
-                                match = False
-                                if serial and json_serial and serial == json_serial:
-                                    match = True
-                                elif phone and json_phone and phone == json_phone:
-                                    match = True
-                                
-                                if match:
-                                    patient_reports.append(report)
-                                    print(f"✅ Found report by JSON metadata: {os.path.basename(key)}")
+                        if url_res.get('status') != 'success':
+                            continue
+                        
+                        r = requests.get(url_res['url'], timeout=3)
+                        if r.status_code == 200:
+                            json_data = r.json()
+                            
+                            # Check if this report belongs to the patient
+                            json_serial = json_data.get('machine_serial', '')
+                            json_phone = json_data.get('user', {}).get('phone', '')
+                            
+                            match = False
+                            if serial and json_serial and serial == json_serial:
+                                match = True
+                            elif phone and json_phone and phone == json_phone:
+                                match = True
+                            
+                            if match:
+                                patient_reports.append(report)
+                                print(f"✅ Found report by JSON metadata: {os.path.basename(key)}")
                     except Exception as e:
-                        # Skip reports we can't fetch
+                        # Skip reports we can't fetch - don't crash
+                        print(f"⚠️ Skipping report {key}: {str(e)[:50]}")
                         continue
             
             # Sort by date (newest first)
