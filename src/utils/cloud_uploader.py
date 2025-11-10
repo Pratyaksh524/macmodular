@@ -60,39 +60,14 @@ class CloudUploader:
     """Handle uploading ECG reports to cloud storage"""
     
     def __init__(self):
-        # Try to load from encrypted config first (no .env needed!)
-        try:
-            from utils.secure_config import get_cloud_config
-            encrypted_config = get_cloud_config()
-            
-            if encrypted_config.get('AWS_ACCESS_KEY_ID'):
-                # Use encrypted config
-                self.cloud_service = encrypted_config.get('CLOUD_SERVICE', 's3').lower()
-                self.s3_bucket = encrypted_config.get('AWS_S3_BUCKET')
-                self.s3_region = encrypted_config.get('AWS_S3_REGION', 'us-east-1')
-                self.aws_access_key = encrypted_config.get('AWS_ACCESS_KEY_ID')
-                self.aws_secret_key = encrypted_config.get('AWS_SECRET_ACCESS_KEY')
-                print("✅ Using encrypted cloud configuration (built-in)")
-            else:
-                # Fallback to .env
-                self.cloud_service = os.getenv('CLOUD_SERVICE', 'none').lower()
-                self.s3_bucket = os.getenv('AWS_S3_BUCKET')
-                self.s3_region = os.getenv('AWS_S3_REGION', 'us-east-1')
-                self.aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-                self.aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-                
-                if self.aws_access_key:
-                    print("✅ Using .env cloud configuration")
-        except Exception as e:
-            # Fallback to traditional .env
-            print(f"⚠️  Encrypted config not available, using .env: {e}")
-            self.cloud_service = os.getenv('CLOUD_SERVICE', 'none').lower()
-            self.s3_bucket = os.getenv('AWS_S3_BUCKET')
-            self.s3_region = os.getenv('AWS_S3_REGION', 'us-east-1')
-            self.aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-            self.aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        
+        self.cloud_service = os.getenv('CLOUD_SERVICE', 'none').lower()
         self.upload_enabled = os.getenv('CLOUD_UPLOAD_ENABLED', 'false').lower() == 'true'
+        
+        # AWS S3 Configuration
+        self.s3_bucket = os.getenv('AWS_S3_BUCKET')
+        self.s3_region = os.getenv('AWS_S3_REGION', 'us-east-1')
+        self.aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        self.aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         
         # Azure Blob Storage Configuration
         self.azure_connection_string = os.getenv('AZURE_STORAGE_CONNECTION_STRING')

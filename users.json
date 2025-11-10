@@ -89,5 +89,15 @@
     "age": "1234",
     "gender": "12445",
     "address": "12344"
+  },
+  "delux": {
+    "password": "delux",
+    "full_name": "delux",
+    "phone": "delux",
+    "serial_id": "d40delux",
+    "email": "",
+    "age": "12",
+    "gender": "male",
+    "address": "delux"
   }
 }

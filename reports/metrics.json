@@ -624,5 +624,68 @@
       1.74,
       0.86
     ]
+  },
+  {
+    "timestamp": "2025-11-10 12:52:46",
+    "file": "/Users/deckmount/Downloads/modularecg-main/ECG_Report_20251110_125244.pdf",
+    "HR_bpm": 119,
+    "PR_ms": 163,
+    "QRS_ms": 64,
+    "QT_ms": 486,
+    "QTc_ms": 506,
+    "ST_ms": -2,
+    "RR_ms": 504,
+    "Sokolow_Lyon_mV": 2.65,
+    "P_QRS_T_axes_deg": [
+      "--",
+      "0",
+      "--"
+    ],
+    "RV5_SV1_mV": [
+      1.74,
+      0.91
+    ]
+  },
+  {
+    "timestamp": "2025-11-10 12:56:30",
+    "file": "/Users/deckmount/Downloads/modularecg-main/ECG_Report_20251110_125628.pdf",
+    "HR_bpm": 120,
+    "PR_ms": 162,
+    "QRS_ms": 65,
+    "QT_ms": 453,
+    "QTc_ms": 473,
+    "ST_ms": -2,
+    "RR_ms": 500,
+    "Sokolow_Lyon_mV": 2.63,
+    "P_QRS_T_axes_deg": [
+      "--",
+      "0",
+      "--"
+    ],
+    "RV5_SV1_mV": [
+      1.72,
+      0.91
+    ]
+  },
+  {
+    "timestamp": "2025-11-10 14:35:28",
+    "file": "/Users/deckmount/Downloads/modularecg-main/ECG_Report_20251110_143526.pdf",
+    "HR_bpm": 0,
+    "PR_ms": 0,
+    "QRS_ms": 0,
+    "QT_ms": 0,
+    "QTc_ms": 0,
+    "ST_ms": 0,
+    "RR_ms": 0,
+    "Sokolow_Lyon_mV": 2.05,
+    "P_QRS_T_axes_deg": [
+      "--",
+      "--",
+      "--"
+    ],
+    "RV5_SV1_mV": [
+      1.26,
+      0.79
+    ]
   }
 ]
