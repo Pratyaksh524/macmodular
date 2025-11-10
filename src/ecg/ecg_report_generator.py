@@ -1686,7 +1686,11 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     doc.build(story, onFirstPage=_draw_logo_and_footer, onLaterPages=_draw_logo_and_footer)
     print(f"✓ ECG Report generated: {filename}")
     
-    # Upload to cloud if configured
+    # ========================================
+    # AUTOMATIC CLOUD UPLOAD
+    # ========================================
+    # This uploads the report automatically to AWS S3 (if configured)
+    # Your teammates don't need to click "Cloud Sync" manually!
     try:
         import sys
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1694,7 +1698,11 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
         
         cloud_uploader = get_cloud_uploader()
         if cloud_uploader.is_configured():
-            print(f"☁️  Uploading report to cloud ({cloud_uploader.cloud_service})...")
+            print("\n" + "="*70)
+            print("☁️  AUTOMATIC CLOUD UPLOAD - STARTING")
+            print("="*70)
+            print(f"📤 Uploading to: {cloud_uploader.cloud_service.upper()}")
+            print(f"📄 Report: {os.path.basename(filename)}")
             
             # Prepare metadata
             upload_metadata = {
@@ -1705,22 +1713,50 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                 "heart_rate": str(data.get('Heart_Rate', '')),
             }
             
-            # Upload the report
+            # Upload the PDF report
             result = cloud_uploader.upload_report(filename, metadata=upload_metadata)
             
             if result.get('status') == 'success':
-                print(f"✓ Report uploaded successfully to {cloud_uploader.cloud_service}")
+                print(f"✅ PDF uploaded successfully!")
                 if 'url' in result:
-                    print(f"  URL: {result['url']}")
+                    print(f"🔗 URL: {result['url']}")
+                
+                # Also upload the JSON twin file if it exists
+                json_filename = filename.replace('.pdf', '.json')
+                if os.path.exists(json_filename):
+                    json_result = cloud_uploader.upload_report(json_filename, metadata=upload_metadata)
+                    if json_result.get('status') == 'success':
+                        print(f"✅ JSON metadata uploaded successfully!")
+                    else:
+                        print(f"⚠️  JSON upload failed: {json_result.get('message', 'Unknown error')}")
+                
+                print("="*70)
+                print("🎉 CLOUD SYNC COMPLETE - Report saved both locally and in cloud!")
+                print("="*70 + "\n")
             else:
-                print(f"⚠️  Cloud upload failed: {result.get('message', 'Unknown error')}")
+                print(f"❌ Upload failed: {result.get('message', 'Unknown error')}")
+                print(f"ℹ️  Report saved locally at: {filename}")
+                print(f"💡 You can manually sync later using the Cloud Sync button")
+                print("="*70 + "\n")
         else:
-            print("ℹ️  Cloud upload not configured (see cloud_config_template.txt)")
+            print("\n" + "="*70)
+            print("ℹ️  CLOUD UPLOAD NOT CONFIGURED")
+            print("="*70)
+            print("📄 Report saved locally only")
+            print(f"📂 Location: {filename}")
+            print()
+            print("💡 To enable automatic cloud sync:")
+            print("   1. Copy template: cp env_template.txt .env")
+            print("   2. Add AWS credentials")
+            print("   3. Run test: python3 test_cloud_connection.py")
+            print("="*70 + "\n")
             
     except ImportError:
-        print("ℹ️  Cloud uploader not available")
+        print("\nℹ️  Cloud uploader module not available")
+        print(f"📄 Report saved locally: {filename}\n")
     except Exception as e:
-        print(f"⚠️  Cloud upload error: {e}")
+        print(f"\n❌ Cloud upload error: {e}")
+        print(f"📄 Report saved locally: {filename}\n")
 
 
 # REMOVE ENTIRE create_sample_ecg_images function (lines ~1222-1257)

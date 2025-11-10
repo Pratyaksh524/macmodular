@@ -152,6 +152,46 @@ class SignIn:
                     record[k] = v
         self.users[username] = record
         self.save_users()
+        
+        # ========================================
+        # AUTOMATIC CLOUD UPLOAD - USER SIGNUP
+        # ========================================
+        # Upload user signup data to cloud automatically
+        try:
+            import sys
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+            from utils.cloud_uploader import get_cloud_uploader
+            from datetime import datetime
+            
+            cloud_uploader = get_cloud_uploader()
+            if cloud_uploader.is_configured():
+                # Prepare user data for cloud upload
+                user_data = {
+                    "username": username,
+                    "full_name": full_name or "",
+                    "phone": phone or "",
+                    "serial_id": serial_id or "",
+                    "email": email or "",
+                    "registration_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                # Add extra fields if present
+                if isinstance(extra, dict):
+                    for k, v in extra.items():
+                        if k not in user_data:
+                            user_data[k] = str(v) if v is not None else ""
+                
+                # Upload to cloud
+                result = cloud_uploader.upload_user_signup(user_data)
+                if result.get('status') == 'success':
+                    print(f"✅ User signup automatically uploaded to cloud")
+                else:
+                    print(f"⚠️  Cloud upload failed: {result.get('message', 'Unknown error')}")
+            else:
+                print("ℹ️  Cloud not configured - user saved locally only")
+        except Exception as e:
+            print(f"⚠️  Cloud upload error: {e}")
+            # Don't fail registration if cloud upload fails
+        
         return True, "Registration successful."
 
     def register_user(self, username: str, password: str) -> bool:
