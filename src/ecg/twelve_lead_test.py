@@ -981,6 +981,11 @@ class ECGTestPage(QWidget):
         self.ecg_menu.set_ecg_test_page(self)
 
         self.ecg_menu.settings_manager = self.settings_manager
+        
+        # Register demo manager's settings callback so wave gain/speed changes work in demo mode
+        if hasattr(self, 'demo_manager'):
+            self.ecg_menu.settings_changed_callback = self.demo_manager.on_settings_changed
+            print("✅ Demo manager settings callback registered")
 
         # Initialize sliding panel for the ECG menu
         self.ecg_menu.sliding_panel = None

@@ -525,6 +525,7 @@ class DemoManager:
 
     def on_settings_changed(self, key, value):
         """Handle immediate settings changes for instant wave updates"""
+        print(f"🎛️🎛️🎛️ Demo Manager: on_settings_changed called with key={key}, value={value}")
         if key in ["wave_speed", "wave_gain"]:
             print(f"🎛️ Demo mode: {key} changed to {value} - updating internal settings")
             print(f"🎛️ Demo mode: _running_demo = {self._running_demo}")
@@ -558,6 +559,15 @@ class DemoManager:
             self._update_wave_speed_settings()
             # Keep dashboard calculator in sync with effective sampling rate
             self._set_demo_sampling_rate(self.samples_per_second)
+        
+        # ALWAYS apply display settings to update Y-axis limits for gain changes
+        # (This ensures matplotlib plots reflect the current wave_gain setting)
+        try:
+            if hasattr(self.ecg_test_page, 'apply_display_settings'):
+                self.ecg_test_page.apply_display_settings()
+                print(f"🎛️ update_demo_plots: Applied display settings (gain={current_gain}mm/mV)")
+        except Exception as e:
+            print(f"⚠️ Could not apply display settings: {e}")
         
         # --- EXACT SAME LOGIC AS DIVYANSH.PY ---
         # 1. Use the time window calculated in _update_wave_speed_settings
