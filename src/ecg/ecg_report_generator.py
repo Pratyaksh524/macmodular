@@ -174,26 +174,73 @@ def capture_real_ecg_graphs_from_dashboard(dashboard_instance=None, ecg_test_pag
         "V1": 6, "V2": 7, "V3": 8, "V4": 9, "V5": 10, "V6": 11
     }
     
+# Check if demo mode is active and get time window for filtering
+    is_demo_mode = False
+    time_window_seconds = None
+    samples_per_second = 150  # Default demo sampling rate
+    
+    if ecg_test_page and hasattr(ecg_test_page, 'demo_toggle'):
+        is_demo_mode = ecg_test_page.demo_toggle.isChecked()
+        if is_demo_mode:
+            # Get time window from demo manager
+            if hasattr(ecg_test_page, 'demo_manager') and ecg_test_page.demo_manager:
+                time_window_seconds = getattr(ecg_test_page.demo_manager, 'time_window', None)
+                samples_per_second = getattr(ecg_test_page.demo_manager, 'samples_per_second', 150)
+                print(f"🔍 DEMO MODE ON - Wave speed window: {time_window_seconds}s, Sampling rate: {samples_per_second}Hz")
+            else:
+                # Fallback: calculate from wave speed setting
+                try:
+                    from utils.settings_manager import SettingsManager
+                    sm = SettingsManager()
+                    wave_speed = float(sm.get_wave_speed())
+                    # Calculate time window: 12.5mm/s → 20s, 25mm/s → 10s, 50mm/s → 5s
+                    baseline_time_window = 10.0
+                    time_window_seconds = baseline_time_window * (25.0 / wave_speed)
+                    print(f"🔍 DEMO MODE ON - Calculated window from wave speed {wave_speed}mm/s: {time_window_seconds}s")
+                except Exception as e:
+                    print(f"⚠️ Could not get demo time window: {e}")
+                    time_window_seconds = None
+    
     # Try to get REAL ECG data from the test page
     real_ecg_data = {}
     if ecg_test_page and hasattr(ecg_test_page, 'data'):
+        
+        # Calculate number of samples to capture based on demo mode
+        if is_demo_mode and time_window_seconds is not None:
+            # In demo mode: only capture data visible in one window frame
+            num_samples_to_capture = int(time_window_seconds * samples_per_second)
+            print(f"📊 DEMO MODE: Capturing only {num_samples_to_capture} samples ({time_window_seconds}s window)")
+        else:
+            # Normal mode: capture maximum data (10 seconds or 10000 points, whichever is smaller)
+            num_samples_to_capture = 10000
+            print(f"📊 NORMAL MODE: Capturing up to {num_samples_to_capture} samples")
         
         for lead in ordered_leads:
             if lead == "-aVR":
                 # For -aVR, we need to invert aVR data
                 if hasattr(ecg_test_page, 'data') and len(ecg_test_page.data) > 3:
                     avr_data = np.array(ecg_test_page.data[3])  # aVR is at index 3
-                    # MAXIMUM data for 7+ heartbeats - NO LIMITS!
-                    real_ecg_data[lead] = -avr_data[-10000:]  # Last 10000 points (20 seconds = plenty of heartbeats)
-                    print(f" Captured REAL -aVR data: {len(real_ecg_data[lead])} points (MAXIMUM for 7+ heartbeats)")
+                    if is_demo_mode and time_window_seconds is not None:
+                        # Demo mode: only capture window frame data
+                        real_ecg_data[lead] = -avr_data[-num_samples_to_capture:]
+                        print(f"📈 Captured DEMO -aVR data: {len(real_ecg_data[lead])} points ({time_window_seconds}s window)")
+                    else:
+                        # Normal mode: capture maximum data
+                        real_ecg_data[lead] = -avr_data[-num_samples_to_capture:]
+                        print(f"📈 Captured REAL -aVR data: {len(real_ecg_data[lead])} points")
             else:
                 lead_index = lead_to_index.get(lead)
                 if lead_index is not None and len(ecg_test_page.data) > lead_index:
-                    # MAXIMUM data for 7+ heartbeats - NO LIMITS!
                     lead_data = np.array(ecg_test_page.data[lead_index])
                     if len(lead_data) > 0:
-                        real_ecg_data[lead] = lead_data[-10000:]  # Last 10000 points (20 seconds = plenty of heartbeats)
-                        print(f"📈 Captured REAL {lead} data: {len(real_ecg_data[lead])} points (MAXIMUM for 7+ heartbeats)")
+                        if is_demo_mode and time_window_seconds is not None:
+                            # Demo mode: only capture window frame data
+                            real_ecg_data[lead] = lead_data[-num_samples_to_capture:]
+                            print(f"📈 Captured DEMO {lead} data: {len(real_ecg_data[lead])} points ({time_window_seconds}s window)")
+                        else:
+                            # Normal mode: capture maximum data
+                            real_ecg_data[lead] = lead_data[-num_samples_to_capture:]
+                            print(f"📈 Captured REAL {lead} data: {len(real_ecg_data[lead])} points")
                     else:
                         print(f"⚠️ No data found for {lead}")
                 else:
@@ -223,7 +270,10 @@ def capture_real_ecg_graphs_from_dashboard(dashboard_instance=None, ecg_test_pag
             import traceback
             traceback.print_exc()
     
-    print(f" Successfully created {len(lead_drawings)}/12 ECG drawings with MAXIMUM heartbeats!")
+    if is_demo_mode and time_window_seconds is not None:
+        print(f"✅ Successfully created {len(lead_drawings)}/12 ECG drawings with DEMO window filtering ({time_window_seconds}s window - visible peaks only)!")
+    else:
+        print(f"✅ Successfully created {len(lead_drawings)}/12 ECG drawings with MAXIMUM heartbeats!")
     return lead_drawings
 
 def create_reportlab_ecg_drawing_with_real_data(lead_name, ecg_data, width=460, height=45):
@@ -467,7 +517,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             "QRS": 0,
             "QT": 0,
             "QTc": 0,
-            "QTcF": 0,
+"QTcF": 0,
             "ST": 0,
             "HR_max": 0,
             "HR_min": 0,
@@ -482,7 +532,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     # SAFEGUARD: If there is no real data (all core metrics are zero), ignore any
     # persisted conclusions and use the explicit "no data" conclusions instead.
     try:
-        core_keys = ["HR", "PR", "QRS", "QT", "QTc", "QTcF", "ST"]
+core_keys = ["HR", "PR", "QRS", "QT", "QTc", "ST"]
         all_zero = True
         for k in core_keys:
             v = data.get(k, 0)
@@ -689,7 +739,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
         ["QRS Complex", f"{data['QRS']} ms", "70 ms - 120 ms"],            
         ["QT Interval", f"{data['QT']} ms", "300 ms - 450 ms"],            
         ["QTC Interval", f"{data['QTc']} ms", "300 ms - 450 ms"],          
-        ["QTCF Interval", f"{data.get('QTcF', data['QTc'])} ms", "300 ms - 450 ms"],
+["QTCF Interval", f"{data.get('QTcF', data['QTc'])} ms", "300 ms - 450 ms"],
         ["QRS Axis", f"{data.get('QRS_axis', '--')}°", "Normal"],         
         ["ST Segment", f"{data['ST']} mV", "-0.5 mV to +1.0 mV"],  # Changed from ms to mV            
     ]
@@ -908,24 +958,17 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     QRS = data.get('QRS', 93)
     QT = data.get('QT', 354)
     QTc = data.get('QTc', 260)
-    QTcF = data.get('QTcF', QTc)
-    ST_value = data.get('ST', 0.0)
-    if isinstance(ST_value, (int, float)):
-        ST_numeric = round(float(ST_value), 2)
-        ST_display = f"{ST_numeric:.2f}"
-    else:
-        ST_numeric = ST_value
-        ST_display = str(ST_value)
+ST = data.get('ST', 114)
     # DYNAMIC RR interval calculation from heart rate (instead of hard-coded 857)
     RR = int(60000 / HR) if HR and HR > 0 else 0  # RR interval in ms from heart rate
    
 
     # Create table data: 2 rows × 2 columns (as per your changes)
     vital_table_data = [
-        [f"HR : {HR} bpm", f"QT : {QT} ms"],
-        [f"PR : {PR} ms", f"QTc : {QTc} ms"],
-        [f"QRS: {QRS} ms", f"QTcF: {QTcF} ms"],
-        [f"RR : {RR} ms", f"ST : {ST_display} mV"]
+[f"HR : {HR} bpm", f"QT: {QT} ms"],
+        [f"PR : {PR} ms", f"QTc: {QTc} ms"],
+        [f"QRS: {QRS} ms", f"ST: {ST} mV"],  # Changed from ms to mV (voltage)
+        [f"RR : {RR} ms", ""]
     ]
 
     # Create vital parameters table with MORE LEFT and TOP positioning
@@ -977,11 +1020,44 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     # STEP 3: Draw ALL ECG content directly in master drawing
     successful_graphs = 0
     
-    # Check if demo mode is active
+# Check if demo mode is active and get time window for filtering
     is_demo_mode = False
+    time_window_seconds = None
+    samples_per_second = 150  # Default demo sampling rate
+    
     if ecg_test_page and hasattr(ecg_test_page, 'demo_toggle'):
         is_demo_mode = ecg_test_page.demo_toggle.isChecked()
-        print(f"🔍 Report Generator: Demo mode is {'ON' if is_demo_mode else 'OFF'}")
+        if is_demo_mode:
+            # Get time window from demo manager
+            if hasattr(ecg_test_page, 'demo_manager') and ecg_test_page.demo_manager:
+                time_window_seconds = getattr(ecg_test_page.demo_manager, 'time_window', None)
+                samples_per_second = getattr(ecg_test_page.demo_manager, 'samples_per_second', 150)
+                print(f"🔍 Report Generator: Demo mode ON - Wave speed window: {time_window_seconds}s, Sampling rate: {samples_per_second}Hz")
+            else:
+                # Fallback: calculate from wave speed setting
+                try:
+                    from utils.settings_manager import SettingsManager
+                    sm = SettingsManager()
+                    wave_speed = float(sm.get_wave_speed())
+                    # Calculate time window: 12.5mm/s → 20s, 25mm/s → 10s, 50mm/s → 5s
+                    baseline_time_window = 10.0
+                    time_window_seconds = baseline_time_window * (25.0 / wave_speed)
+                    print(f"🔍 Report Generator: Demo mode ON - Calculated window from wave speed {wave_speed}mm/s: {time_window_seconds}s")
+                except Exception as e:
+                    print(f"⚠️ Could not get demo time window: {e}")
+                    time_window_seconds = None
+        else:
+            print(f"🔍 Report Generator: Demo mode is OFF")
+    
+    # Calculate number of samples to capture based on demo mode
+    if is_demo_mode and time_window_seconds is not None:
+        # In demo mode: only capture data visible in one window frame
+        num_samples_to_capture = int(time_window_seconds * samples_per_second)
+        print(f"📊 DEMO MODE: Master drawing will capture only {num_samples_to_capture} samples ({time_window_seconds}s window)")
+    else:
+        # Normal mode: capture maximum data (8000 points = 16 seconds at 500Hz)
+        num_samples_to_capture = 8000
+        print(f"📊 NORMAL MODE: Master drawing will capture up to {num_samples_to_capture} samples")
     
     for pos_info in lead_positions:
         lead = pos_info["lead"]
@@ -995,7 +1071,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                               fontSize=10, fontName="Helvetica-Bold", fillColor=colors.black)
             master_drawing.add(lead_label)
             
-            # STEP 3B: Get ALL AVAILABLE REAL ECG data for this lead
+# STEP 3B: Get REAL ECG data for this lead (filtered by demo mode window if applicable)
             real_data_available = False
             if ecg_test_page and hasattr(ecg_test_page, 'data'):
                 lead_to_index = {
@@ -1004,25 +1080,31 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                 }
                 
                 if lead == "-aVR" and len(ecg_test_page.data) > 3:
-                    # For -aVR, use ALL available inverted aVR data
-                    raw_data = ecg_test_page.data[3][-8000:]
+# For -aVR, use filtered inverted aVR data
+                    raw_data = ecg_test_page.data[3][-num_samples_to_capture:]
                     # Check if data is not all zeros or flat
                     if len(raw_data) > 0 and np.std(raw_data) > 0.01:
-                        real_ecg_data = -np.array(raw_data)  # Last 8000 points = 16 seconds
+                        real_ecg_data = -np.array(raw_data)
                         real_data_available = True
-                        print(f"✅ Using ALL available -aVR data: {len(real_ecg_data)} points (std: {np.std(real_ecg_data):.2f})")
+                        if is_demo_mode and time_window_seconds is not None:
+                            print(f"✅ Using DEMO -aVR data: {len(real_ecg_data)} points ({time_window_seconds}s window, std: {np.std(real_ecg_data):.2f})")
+                        else:
+                            print(f"✅ Using ALL available -aVR data: {len(real_ecg_data)} points (std: {np.std(real_ecg_data):.2f})")
                     else:
                         print(f"⚠️ -aVR data is flat or empty (std: {np.std(raw_data) if len(raw_data) > 0 else 0:.4f})")
                 elif lead in lead_to_index and len(ecg_test_page.data) > lead_to_index[lead]:
-                    # Get ALL available real data for this lead
+                    # Get filtered real data for this lead
                     lead_index = lead_to_index[lead]
                     if len(ecg_test_page.data[lead_index]) > 0:
-                        raw_data = ecg_test_page.data[lead_index][-8000:]  # Last 8000 points = 16 seconds
+                        raw_data = ecg_test_page.data[lead_index][-num_samples_to_capture:]
                         # Check if data has variation (not all zeros or flat line)
                         if len(raw_data) > 0 and np.std(raw_data) > 0.01:
                             real_ecg_data = np.array(raw_data)
                             real_data_available = True
-                            print(f"✅ Using ALL available {lead} data: {len(real_ecg_data)} points (std: {np.std(real_ecg_data):.2f})")
+if is_demo_mode and time_window_seconds is not None:
+                                print(f"✅ Using DEMO {lead} data: {len(real_ecg_data)} points ({time_window_seconds}s window, std: {np.std(real_ecg_data):.2f})")
+                            else:
+                                print(f"✅ Using ALL available {lead} data: {len(real_ecg_data)} points (std: {np.std(real_ecg_data):.2f})")
                         else:
                             print(f"⚠️ Lead {lead} data is flat or empty (std: {np.std(raw_data) if len(raw_data) > 0 else 0:.4f})")
                     else:
@@ -1061,7 +1143,10 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                 # Add path to master drawing
                 master_drawing.add(ecg_path)
                 
-                print(f"✅ Added ALL REAL ECG data for Lead {lead}: {len(real_ecg_data)} points (MAXIMUM heartbeats)")
+if is_demo_mode and time_window_seconds is not None:
+                    print(f"✅ Added DEMO ECG data for Lead {lead}: {len(real_ecg_data)} points ({time_window_seconds}s window - visible peaks only)")
+                else:
+                    print(f"✅ Added ALL REAL ECG data for Lead {lead}: {len(real_ecg_data)} points (MAXIMUM heartbeats)")
             else:
                 print(f"📋 No real data for Lead {lead} - showing grid only")
             
@@ -1125,13 +1210,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     qtc_label = String(130, 576, f"QTc  : {QTc} ms", 
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(qtc_label)
-    qtcf_label = String(130, 558, f"QTcF : {QTcF} ms",
-                     fontSize=10, fontName="Helvetica", fillColor=colors.black)
-    master_drawing.add(qtcf_label)
-    
-    # SECOND COLUMN (Right side - x=240)
+# SECOND COLUMN (Right side - x=240)
     # ST segment is voltage (mV), not time (ms)
-    st_label = String(240, 594, f"ST            : {ST_display} mV", 
+    st_label = String(240, 594, f"ST            : {ST} mV",
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(st_label)
 
@@ -1238,11 +1319,10 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                     r_peaks, _ = find_peaks(integrated, height=threshold, distance=int(0.6*fs))
                     
                     if len(r_peaks) >= 2:
-                        lead_I_arr = np.asarray(lead_I)
+lead_I_arr = np.asarray(lead_I)
                         lead_aVF_arr = np.asarray(lead_aVF)
                         filtered_i = filtfilt(b, a, lead_I_arr)
                         filtered_avf = filtfilt(b, a, lead_aVF_arr)
-
                         # Detect P-peaks (120-200ms before R)
                         p_peaks = []
                         for r in r_peaks:
@@ -1265,41 +1345,12 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                                     t_idx = t_start + np.argmax(segment)
                                     t_peaks.append(t_idx)
                         
-                        def _axis_from_peaks(peaks, window_ms):
-                            if not peaks:
-                                return "--"
-                            net_i_vals = []
-                            net_avf_vals = []
-                            window = max(1, int((window_ms / 1000.0) * fs))
-                            for peak_idx in peaks:
-                                start = max(0, peak_idx - window // 2)
-                                end = min(len(filtered_i), peak_idx + window // 2)
-                                if end <= start:
-                                    continue
-                                seg_i = filtered_i[start:end]
-                                seg_avf = filtered_avf[start:end]
-                                base_i = np.mean(filtered_i[max(0, start - int(0.05 * fs)):start]) if start > 0 else np.mean(seg_i)
-                                base_avf = np.mean(filtered_avf[max(0, start - int(0.05 * fs)):start]) if start > 0 else np.mean(seg_avf)
-                                net_i_vals.append(np.sum(seg_i - base_i))
-                                net_avf_vals.append(np.sum(seg_avf - base_avf))
-                            if net_i_vals and net_avf_vals:
-                                axis_rad = np.arctan2(np.mean(net_avf_vals), np.mean(net_i_vals))
-                                axis_deg = np.degrees(axis_rad)
-                                if axis_deg < -180:
-                                    axis_deg += 360
-                                if axis_deg > 180:
-                                    axis_deg -= 360
-                                return int(round(axis_deg))
-                            return "--"
-
+# Calculate QRS axis (P and T axis calculations removed for simplification)
                         if len(r_peaks) >= 2:
-                            qrs_axis_deg = calculate_qrs_axis(filtered_i, filtered_avf, r_peaks, fs)
-                        p_axis_candidate = _axis_from_peaks(p_peaks, 80)
-                        t_axis_candidate = _axis_from_peaks(t_peaks, 120)
-                        if p_axis_candidate != "--":
-                            p_axis_deg = p_axis_candidate
-                        if t_axis_candidate != "--":
-                            t_axis_deg = t_axis_candidate
+                            qrs_axis_deg = calculate_qrs_axis(np.asarray(lead_I), np.asarray(lead_aVF), r_peaks, fs)
+                        # P and T axes set to "--" (not calculated in simplified version)
+                        p_axis_deg = "--"
+                        t_axis_deg = "--"
                         
                         print(f"✅ Calculated axes: P={p_axis_deg}, QRS={qrs_axis_deg}, T={t_axis_deg}")
         except Exception as e:
@@ -1667,9 +1718,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                 "QRS_ms": QRS,
                 "QT_ms": QT,
                 "QTc_ms": QTc,
-                "QTcF_ms": QTcF,
-                "ST_ms": ST_numeric,
-                "ST_mV": ST_numeric,
+"ST_ms": ST,
                 "RR_ms": RR,
                 "Sokolow_Lyon_mV": round(sokolow_lyon_mv, 2),  # SV1+RV5 in mV
                 "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],
@@ -1705,9 +1754,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             "QRS_ms": QRS,
             "QT_ms": QT,
             "QTc_ms": QTc,
-            "QTcF_ms": QTcF,
-            "ST_ms": ST_numeric,
-            "ST_mV": ST_numeric,
+"ST_ms": ST,
             "RR_ms": RR,
             "Sokolow_Lyon_mV": round(sokolow_lyon_mv, 2),  # SV1+RV5 in mV
             "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],

@@ -689,6 +689,12 @@ class Dashboard(QWidget):
         self.schedule_calendar.clicked.connect(self.on_calendar_date_selected)
         self.schedule_calendar.selectionChanged.connect(self.on_calendar_selection_changed)
         
+        # Disable double-click activation (prevents popup window)
+        try:
+            self.schedule_calendar.activated.disconnect()
+        except:
+            pass  # No activated signal connected
+        
         # Disabled: No longer connect month/year navigation to custom dropdowns
         # self.schedule_calendar.currentPageChanged.connect(self.on_calendar_page_changed)
         
@@ -1034,6 +1040,11 @@ class Dashboard(QWidget):
         if filter_date:
             fd = str(filter_date).strip()
             entries = [e for e in entries if str(e.get('date','')).strip() == fd]
+
+        # Filter to only show ECG Report entries (not detailed JSON metadata)
+        # ECG Report entries have 'filename' and 'title' keys
+        # Detailed metadata entries have 'timestamp' and 'metrics' keys
+        entries = [e for e in entries if 'filename' in e and 'title' in e]
 
         for e in entries[:10]:
             # Build row with hover/touch feedback
@@ -1486,9 +1497,16 @@ class Dashboard(QWidget):
                 peaks, _ = find_peaks(
                     filtered_signal,
                     height=height_threshold,
-                    distance=max(1, int(0.15 * fs)),
+                    distance=int(0.4 * fs),
                     prominence=prominence_threshold
                 )
+            
+            metrics = {}
+            
+            # Calculate Heart Rate with anti-flickering
+            if len(peaks) >= 2:
+                # Calculate R-R intervals in milliseconds
+                rr_intervals_ms = np.diff(peaks) * (1000 / fs)
             
             metrics = {}
             

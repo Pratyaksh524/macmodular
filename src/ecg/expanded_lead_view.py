@@ -573,6 +573,9 @@ class ExpandedLeadView(QDialog):
         self.setup_ui()
         self.analyze_ecg()
         
+        # Initialize history slider range after analyzing data
+        self.update_history_slider()
+        
         # Start live updates if parent is available (hardware data)
         if parent is not None:
             self.start_live_mode()
@@ -886,19 +889,28 @@ class ExpandedLeadView(QDialog):
         slider.setSingleStep(10)
         slider.setPageStep(100)
         slider.setTickPosition(QSlider.TicksBelow)
+        slider.setEnabled(True)  # Ensure slider is always enabled
         slider.setStyleSheet("""
             QSlider::groove:horizontal {
-                border: 1px solid #bbb;
+                border: 2px solid #3498db;
                 background: #f5f5f5;
-                height: 6px;
+                height: 8px;
                 border-radius: 4px;
             }
             QSlider::handle:horizontal {
                 background: #3498db;
-                border: 1px solid #1f78b4;
-                width: 14px;
-                margin: -6px 0;
-                border-radius: 7px;
+                border: 2px solid #1f78b4;
+                width: 18px;
+                height: 18px;
+                margin: -8px 0;
+                border-radius: 9px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #2980b9;
+                border: 2px solid #21618c;
+            }
+            QSlider::handle:horizontal:pressed {
+                background: #21618c;
             }
         """)
         slider.valueChanged.connect(self.on_history_slider_changed)
@@ -907,8 +919,28 @@ class ExpandedLeadView(QDialog):
         history_value = QLabel("LIVE")
         history_value.setStyleSheet("color: #7f8c8d; font-size: 10pt; font-weight: bold;")
         history_layout.addWidget(history_value)
+        
+        # Add "Back to Live" button
+        live_btn = QPushButton("↻ Live")
+        live_btn.setMinimumSize(70, 30)
+        live_btn.setStyleSheet("""
+            QPushButton {
+                background: #3498db;
+                color: white;
+                border-radius: 5px;
+                padding: 4px 8px;
+                font-weight: bold;
+                font-size: 9pt;
+            }
+            QPushButton:hover {
+                background: #2980b9;
+            }
+        """)
+        live_btn.clicked.connect(self.return_to_live_view)
+        history_layout.addWidget(live_btn)
 
-        history_frame.setVisible(False)
+        # Show history slider by default (can be used anytime)
+        history_frame.setVisible(True)
         plot_layout.addWidget(history_frame)
 
         self.history_slider = slider
@@ -1125,7 +1157,8 @@ class ExpandedLeadView(QDialog):
                     new_data = parent.data[lead_index]
                     if len(new_data) > 0:
                         self.ecg_data = np.array(new_data)
-                        if not self.manual_view:
+                        # Only auto-advance if user hasn't manually positioned the slider
+                        if not self.manual_view and not self.history_slider_active:
                             total_duration = len(self.ecg_data) / max(1.0, self.sampling_rate)
                             self.view_window_offset = max(0.0, total_duration - self.view_window_duration)
                         self.analyze_ecg()
@@ -1160,7 +1193,8 @@ class ExpandedLeadView(QDialog):
 
             total_duration = total_samples / max(1.0, self.sampling_rate)
             max_offset = max(0.0, total_duration - self.view_window_duration)
-            if not self.manual_view:
+            # If user manually positioned slider, keep that position
+            if not self.manual_view and not self.history_slider_active:
                 self.view_window_offset = max_offset
             else:
                 self.view_window_offset = min(self.view_window_offset, max_offset)
@@ -1417,6 +1451,9 @@ class ExpandedLeadView(QDialog):
             self.prepare_heatmap_overlay(heat_map_data)
             
             self.update_plot_with_markers(analysis)
+            
+            # Update history slider range after analysis
+            self.update_history_slider()
         except Exception as e:
             print(f"Error in ECG analysis: {e}")
             self.arrhythmia_list.setText("An error occurred during analysis.")
@@ -1653,9 +1690,13 @@ class ExpandedLeadView(QDialog):
         max_offset = max(0.0, total_duration - self.view_window_duration)
         slider_max = int(max_offset * 1000)
         current_val = int(min(self.view_window_offset, max_offset) * 1000)
+        
+        print(f"🎚️ Updating history slider: max={slider_max}, current={current_val}, duration={total_duration:.1f}s")
+        
         self.history_slider.blockSignals(True)
         self.history_slider.setMaximum(slider_max)
         self.history_slider.setValue(current_val)
+        self.history_slider.setEnabled(True)  # Ensure slider is enabled
         self.history_slider.blockSignals(False)
 
         if self.history_slider_label:
@@ -1667,17 +1708,33 @@ class ExpandedLeadView(QDialog):
                 self.history_slider_label.setText(f"{start_time:0.1f}s – {end_time:0.1f}s")
 
     def on_history_slider_changed(self, value):
-        """Scroll through historical data when acquisition is stopped"""
-        if not self.history_slider_active:
-            return
+        """Scroll through historical data - works anytime"""
+        print(f"🎚️ History slider changed to: {value}")
         self.manual_view = True
+        self.history_slider_active = True  # Enable manual control
         self.view_window_offset = value / 1000.0
+        print(f"📊 View window offset set to: {self.view_window_offset:.2f}s")
         self.update_plot()
         if self.history_slider_label:
             total_duration = len(self.ecg_data) / max(1.0, self.sampling_rate)
             start_time = max(0.0, min(self.view_window_offset, total_duration))
             end_time = min(start_time + self.view_window_duration, total_duration)
             self.history_slider_label.setText(f"{start_time:0.1f}s – {end_time:0.1f}s")
+            print(f"✅ Showing window: {start_time:.1f}s - {end_time:.1f}s")
+    
+    def return_to_live_view(self):
+        """Return to live view (most recent data)"""
+        print("🔴 Returning to LIVE view")
+        self.manual_view = False
+        self.history_slider_active = False
+        if self.history_slider_label:
+            self.history_slider_label.setText("LIVE")
+        # Update plot to show latest data
+        if len(self.ecg_data) > 0:
+            total_duration = len(self.ecg_data) / max(1.0, self.sampling_rate)
+            self.view_window_offset = max(0.0, total_duration - self.view_window_duration)
+            self.update_plot()
+            self.update_history_slider()
 
 def show_expanded_lead_view(lead_name, ecg_data, sampling_rate=500, parent=None):
     """Show the expanded lead view dialog"""

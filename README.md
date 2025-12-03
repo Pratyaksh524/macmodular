@@ -150,7 +150,7 @@ This section gives a single-page overview of how the main pieces of the app work
   - `Dashboard.update_dashboard_metrics_from_ecg(...)` pulls those metrics and updates the top cards.
   - Heart rate on the dashboard has its own smoothing in `calculate_dashboard_metrics(...)` with a valid range of **10–300 bpm** and R‑R‑interval filtering (default 250 Hz).
 - **Heartbeat animation & sound**:
-  - `animate_heartbeat()` reads the “HR bpm” label, converts to a numeric value, and:
+  - `animate_heartbeat()` reads the "HR bpm" label, converts to a numeric value, and:
     - Adjusts the animation phase/beat interval (`beat_interval = 60000 / HR`).
     - Plays a QSound heartbeat only if HR ≥ 10 and valid data is present.
 
@@ -209,7 +209,7 @@ This section gives a single-page overview of how the main pieces of the app work
       - QT in ms:
         - \( \mathrm{QT\_ms} \in [200,600] \) if valid.
     - `calculate_qtc_interval(heart_rate, qt_interval)`:
-      - Bazett’s formula:
+      - Bazett's formula:
         - \( \mathrm{QTc} = \frac{QT}{\sqrt{RR}} \), where \( RR = 60/\mathrm{HR} \) (seconds).
         - Returns QTc in ms.
 
