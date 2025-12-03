@@ -5197,7 +5197,7 @@ class ECGTestPage(QWidget):
                     data = np.array([])
                 line = self._overlay_lines[idx]
                 ax = self._overlay_axes[idx]
-
+                
                 # Ensure overlay line length matches current buffer size
                 buffer_len = target_buffer_len
                 try:
@@ -5234,7 +5234,7 @@ class ECGTestPage(QWidget):
                         centered_raw = np.nan_to_num(centered_raw, copy=False)
                     else:
                         centered_raw = np.zeros(buffer_len, dtype=float)
-
+                    
                     # Apply current gain setting (match main 12-lead grid)
                     gain_factor = float(self.settings_manager.get_wave_gain()) / 10.0  # 10mm/mV baseline
                     
@@ -5904,7 +5904,7 @@ class ECGTestPage(QWidget):
                         centered_raw = np.nan_to_num(centered_raw, copy=False)
                     else:
                         centered_raw = np.zeros(buffer_len, dtype=float)
-
+                    
                     # Apply current gain setting (match main 12-lead grid)
                     gain_factor = float(self.settings_manager.get_wave_gain()) / 10.0  # 10mm/mV baseline
                     

@@ -537,7 +537,7 @@ class ExpandedLeadView(QDialog):
         self.view_window_offset = 0.0
         self.manual_view = False
         self.history_slider_active = False
-
+        
         # Live data update
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_live_data)
@@ -820,15 +820,15 @@ class ExpandedLeadView(QDialog):
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #4CAF50, stop:1 #45a049);
-                color: white;
+                color: white; 
                 border: 2px solid #4CAF50;
                 border-radius: 6px;
                 padding: 4px 12px;
                 font-size: 10px;
-                font-weight: bold;
+                font-weight: bold; 
                 text-align: center;
             }
-            QPushButton:hover {
+            QPushButton:hover { 
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
                     stop:0 #45a049, stop:1 #4CAF50);
                 border: 2px solid #45a049;
@@ -914,7 +914,7 @@ class ExpandedLeadView(QDialog):
         self.history_slider = slider
         self.history_slider_label = history_value
         self.history_slider_frame = history_frame
-
+        
         plot_layout.addWidget(control_frame)
         
         parent_layout.addWidget(plot_frame, 7) # Plot takes ~70% of horizontal space
@@ -1175,7 +1175,7 @@ class ExpandedLeadView(QDialog):
             base_scaled = window_signal * self.display_gain
             self.signal_baseline = np.mean(base_scaled)
             scaled = self.signal_baseline + (base_scaled - self.signal_baseline) * self.amplification
-
+            
             # Determine y-limits once based on entire dataset for consistent scaling
             if self.fixed_ylim is None and len(self.ecg_data) > 0:
                 baseline_full = self.ecg_data * self.display_gain
@@ -1210,7 +1210,7 @@ class ExpandedLeadView(QDialog):
                 )
 
             self.ax.plot(time, scaled, color='#0984e3', linewidth=1.0, label='ECG Signal', zorder=1)
-
+            
             # Overlay vertical markers at detected arrhythmia event times within the visible window
             if hasattr(self, "arrhythmia_events") and self.arrhythmia_events:
                 t_start, t_end = time[0], time[-1]
@@ -1245,12 +1245,12 @@ class ExpandedLeadView(QDialog):
                 fontweight='bold',
                 color='#2c3e50'
             )
-
+            
             self.ax.grid(True, which='both', linestyle='--', linewidth=0.5, color='#bdc3c7')
             self.ax.spines['top'].set_visible(False)
             self.ax.spines['right'].set_visible(False)
             self.ax.set_xlim(time[0], time[-1])
-
+            
             if self.fixed_ylim is not None:
                 self.ax.set_ylim(self.fixed_ylim[0], self.fixed_ylim[1])
 

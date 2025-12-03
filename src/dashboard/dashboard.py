@@ -2043,7 +2043,7 @@ class Dashboard(QWidget):
                         except Exception:
                             hr_text = None
                     if hr_text and hr_text not in ('00', '--', '0'):
-                        self.metric_labels['heart_rate'].setText(f"{hr_text} bpm")
+                            self.metric_labels['heart_rate'].setText(f"{hr_text} bpm")
                     else:
                         self.metric_labels['heart_rate'].setText("--")
                     
