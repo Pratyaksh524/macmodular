@@ -967,7 +967,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
         [f"HR : {HR} bpm", f"QT: {QT} ms"],
         [f"PR : {PR} ms", f"QTc: {QTc} ms"],
         [f"QRS: {QRS} ms", f"ST: {ST} mV"],  # Changed from ms to mV (voltage)
-        [f"RR : {RR} ms", ""]
+        [f"RR : {RR} ms", ""]  
     ]
 
     # Create vital parameters table with MORE LEFT and TOP positioning
@@ -1209,9 +1209,9 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
     qtc_label = String(130, 576, f"QTc  : {QTc} ms", 
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(qtc_label)
-# SECOND COLUMN (Right side - x=240)
+    # SECOND COLUMN (Right side - x=240)
     # ST segment is voltage (mV), not time (ms)
-    st_label = String(240, 594, f"ST            : {ST} mV",
+    st_label = String(240, 594, f"ST            : {ST} mV", 
                      fontSize=10, fontName="Helvetica", fillColor=colors.black)
     master_drawing.add(st_label)
 
@@ -1344,7 +1344,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                                     t_idx = t_start + np.argmax(segment)
                                     t_peaks.append(t_idx)
                         
-# Calculate QRS axis (P and T axis calculations removed for simplification)
+                        # Calculate QRS axis (P and T axis calculations removed for simplification)
                         if len(r_peaks) >= 2:
                             qrs_axis_deg = calculate_qrs_axis(np.asarray(lead_I), np.asarray(lead_aVF), r_peaks, fs)
                         # P and T axes set to "--" (not calculated in simplified version)
@@ -1717,7 +1717,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
                 "QRS_ms": QRS,
                 "QT_ms": QT,
                 "QTc_ms": QTc,
-"ST_ms": ST,
+                "ST_ms": ST,
                 "RR_ms": RR,
                 "Sokolow_Lyon_mV": round(sokolow_lyon_mv, 2),  # SV1+RV5 in mV
                 "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],
@@ -1753,7 +1753,7 @@ def generate_ecg_report(filename="ecg_report.pdf", data=None, lead_images=None, 
             "QRS_ms": QRS,
             "QT_ms": QT,
             "QTc_ms": QTc,
-"ST_ms": ST,
+            "ST_ms": ST,
             "RR_ms": RR,
             "Sokolow_Lyon_mV": round(sokolow_lyon_mv, 2),  # SV1+RV5 in mV
             "P_QRS_T_axes_deg": [p_axis_str, qrs_axis_str, t_axis_str],
