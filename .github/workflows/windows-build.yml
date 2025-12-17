@@ -32,7 +32,7 @@ jobs:
         shell: pwsh
         run: |
           cd src
-          pyinstaller --onefile --noconsole --name CardioXApp --add-data "..\\dummycsv.csv;." --add-data "..\\assets;assets" --add-data "..\\ecg_settings.json;." --add-data "..\\users.json;." --add-data "chat_history.json;." main.py
+          pyinstaller --onefile --noconsole --name CardioXApp --hidden-import ecg.hrv_test --hidden-import ecg.hyperkalemia_test --hidden-import ecg.hrv_ecg_report_generator --hidden-import ecg.hyperkalemia_ecg_report_generator --hidden-import reportlab --hidden-import reportlab.lib --hidden-import reportlab.platypus --hidden-import matplotlib.backends.backend_agg --add-data "..\\dummycsv.csv;." --add-data "..\\assets;assets" --add-data "..\\ecg_settings.json;." --add-data "..\\users.json;." --add-data "chat_history.json;." main.py
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
