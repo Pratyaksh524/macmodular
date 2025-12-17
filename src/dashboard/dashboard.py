@@ -387,39 +387,59 @@ class Dashboard(QWidget):
         greet_row.addWidget(greet)
         greet_row.addStretch()
         
+        # Button style helper for consistent cross-platform appearance
+        def create_button(text, color, hover_color=None, pressed_color=None):
+            """Create a button with consistent styling across macOS and Windows"""
+            btn = QPushButton(text)
+            hover = hover_color or color
+            pressed = pressed_color or color
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {color};
+                    color: white;
+                    border: none;
+                    border-radius: 16px;
+                    padding: 8px 24px;
+                    font-size: 14px;
+                    font-weight: bold;
+                    min-height: 36px;
+                    min-width: 100px;
+                }}
+                QPushButton:hover {{
+                    background: {hover};
+                }}
+                QPushButton:pressed {{
+                    background: {pressed};
+                }}
+            """)
+            btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            # Enable fast rendering on Windows
+            btn.setAttribute(Qt.WA_OpaquePaintEvent, True)
+            return btn
+        
         # History button (orange dark suede, left of Hyperkalemia)
-        self.history_btn = QPushButton("History")
-        self.history_btn.setStyleSheet("background: #b35900; color: white; border-radius: 16px; padding: 8px 24px;")
+        self.history_btn = create_button("History", "#b35900", "#c97a1a", "#994700")
         self.history_btn.clicked.connect(self.open_history_window)
-        self.history_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         greet_row.addWidget(self.history_btn)
 
         # Hyperkalemia Test button (orange suede color, right of History, left of HRV Test)
-        self.hyperkalemia_test_btn = QPushButton("Hyperkalemia Test")
-        self.hyperkalemia_test_btn.setStyleSheet("background: #d2691e; color: white; border-radius: 16px; padding: 8px 24px;")
+        self.hyperkalemia_test_btn = create_button("Hyperkalemia Test", "#d2691e", "#e68a3e", "#b8590e")
         self.hyperkalemia_test_btn.clicked.connect(self.open_hyperkalemia_test)
-        self.hyperkalemia_test_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         greet_row.addWidget(self.hyperkalemia_test_btn)
         
         # HRV Test button (red color, left of ECG Lead Test 12)
-        self.hrv_test_btn = QPushButton("HRV Test")
-        self.hrv_test_btn.setStyleSheet("background: #dc3545; color: white; border-radius: 16px; padding: 8px 24px;")
+        self.hrv_test_btn = create_button("HRV Test", "#dc3545", "#e55a5a", "#c02d3d")
         self.hrv_test_btn.clicked.connect(self.open_hrv_test)
-        self.hrv_test_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.hrv_test_btn.setVisible(True)
         greet_row.addWidget(self.hrv_test_btn)
         
-        self.date_btn = QPushButton("ECG Lead Test 12")
-        self.date_btn.setStyleSheet("background: #ff6600; color: white; border-radius: 16px; padding: 8px 24px;")
+        self.date_btn = create_button("ECG Lead Test 12", "#ff6600", "#ff8800", "#e55a00")
         self.date_btn.clicked.connect(self.go_to_lead_test)
-        self.date_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         greet_row.addWidget(self.date_btn)
 
         # --- Add Chatbot Button ---
-        self.chatbot_btn = QPushButton("AI Chatbot")
-        self.chatbot_btn.setStyleSheet("background: #2453ff; color: white; border-radius: 16px; padding: 8px 24px;")
+        self.chatbot_btn = create_button("AI Chatbot", "#2453ff", "#4a6fff", "#1a3fdd")
         self.chatbot_btn.clicked.connect(self.open_chatbot_dialog)
-        self.chatbot_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         greet_row.addWidget(self.chatbot_btn)
 
         dashboard_layout.addLayout(greet_row)
