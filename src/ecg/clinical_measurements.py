@@ -524,6 +524,9 @@ def detect_p_wave_bounds(median_beat, r_idx, fs, tp_baseline):
 def measure_pr_from_median_beat(median_beat, time_axis, fs, tp_baseline):
     """
     Measure PR interval from median beat: P onset → QRS onset (GE/Philips standard).
+    
+    Note: This function should be called with Lead II median beat for standard PR measurement.
+    The median_beat parameter should be from Lead II (index 1 in 12-lead array).
     """
     try:
         r_idx = np.argmin(np.abs(time_axis))  # R-peak at 0 ms
